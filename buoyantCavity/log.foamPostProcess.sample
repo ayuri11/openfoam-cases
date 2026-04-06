@@ -1,0 +1,48 @@
+/*---------------------------------------------------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  11
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+Build  : 11-e1fc8c682ae6
+Exec   : foamPostProcess -latestTime -func sample
+Date   : Apr 04 2026
+Time   : 15:15:24
+Host   : "DESKTOP-LUE6S0N"
+PID    : 929
+I/O    : uncollated
+Case   : /home/pika/OpenFOAM/pika-11/run/buoyantCavity
+nProcs : 1
+sigFpe : Enabling floating point exception trapping (FOAM_SIGFPE).
+fileModificationChecking : Monitoring run-time modified files using timeStampMaster (fileModificationSkew 10)
+allowSystemOperations : Allowing user-supplied system call operations
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+Create time
+
+Create mesh for time = 800
+
+Reading set description:
+    y0.1
+    y0.2
+    y0.3
+    y0.4
+    y0.5
+    y0.6
+    y0.7
+    y0.8
+    y0.9
+
+Time = 800s
+
+Reading fields:
+    volScalarFields: T
+    volVectorFields: U
+
+
+
+Executing functionObjects
+
+End
+
