@@ -24,9 +24,9 @@ haynes.add_element('Co', 0.03125, 'wo')
 # CHANGE - add B-10 enrichment (96%) per your specs
 b4c = openmc.Material(name='B4C')
 b4c.set_density('g/cm3', 2.52)
-b4c.add_nuclide('B10', 0.96, 'wo')  # CHANGE: was add_nuclide('B10',4,'ao') in reference
-b4c.add_nuclide('B11', 0.04, 'wo')  # CHANGE: added B11 remainder
-b4c.add_element('C', 1.0, 'ao')
+b4c.add_nuclide('B10', 3.84, 'ao')  # 96% of 4 boron atoms
+b4c.add_nuclide('B11', 0.16, 'ao')  # 4% of 4 boron atoms
+b4c.add_element('C',   1.0,  'ao')  # 1 carbon atomhaynes.add_element('Fe', 0.01875, 'wo')
 
 # KEEP - same BeO reflector as reference
 beo = openmc.Material(name='BeO')
@@ -48,25 +48,26 @@ graphite.add_element('C', 1.0, 'ao')
 graphite.add_s_alpha_beta('c_Graphite')  # thermal scattering law
 
 # CHANGE: Zone 1 - central region, 12% enrichment (replaces U-10Mo entirely)
+# U235 12%, U238 88% by atom, O at ratio 2:1 to uraniumfuel_zone1 = openmc.Material(name='UO2_12pct')
 fuel_zone1 = openmc.Material(name='UO2_12pct')
 fuel_zone1.set_density('g/cm3', 10.4)
-fuel_zone1.add_nuclide('U235', 0.12,  'wo')
-fuel_zone1.add_nuclide('U238', 0.88,  'wo')
-fuel_zone1.add_element('O',    2.0,   'ao')
+fuel_zone1.add_nuclide('U235', 0.12, 'ao')
+fuel_zone1.add_nuclide('U238', 0.88, 'ao')
+fuel_zone1.add_nuclide('O16',  2.0,  'ao')
 
 # CHANGE: Zone 2 - middle region, 15% enrichment
 fuel_zone2 = openmc.Material(name='UO2_15pct')
 fuel_zone2.set_density('g/cm3', 10.4)
-fuel_zone2.add_nuclide('U235', 0.15,  'wo')
-fuel_zone2.add_nuclide('U238', 0.85,  'wo')
-fuel_zone2.add_element('O',    2.0,   'ao')
+fuel_zone2.add_nuclide('U235', 0.15, 'ao')
+fuel_zone2.add_nuclide('U238', 0.85, 'ao')
+fuel_zone2.add_nuclide('O16',  2.0,  'ao')
 
 # CHANGE: Zone 3 - outer region, 19.75% HALEU enrichment
 fuel_zone3 = openmc.Material(name='UO2_1975pct')
 fuel_zone3.set_density('g/cm3', 10.4)
-fuel_zone3.add_nuclide('U235', 0.1975, 'wo')
-fuel_zone3.add_nuclide('U238', 0.8025, 'wo')
-fuel_zone3.add_element('O',    2.0,    'ao')
+fuel_zone3.add_nuclide('U235', 0.1975, 'ao')
+fuel_zone3.add_nuclide('U238', 0.8025, 'ao')
+fuel_zone3.add_nuclide('O16',  2.0,   'ao')
 
 # CHANGE: updated materials list (removed U-10Mo, added graphite + 3 fuel zones)
 materials = openmc.Materials([
@@ -213,6 +214,13 @@ lattice.center = (0.0, 0.0)
 lattice.pitch  = (cell_flat,)           # flat-to-flat pitch in cm
 lattice.orientation = 'x'              # flat side faces x-axis
 
+# ADD: outer universe catches particles that leave lattice boundary
+outer_fill_cell = openmc.Cell(fill=beo)
+outer_univ      = openmc.Universe(cells=[outer_fill_cell])
+
+# ADD: assign outer universe to lattice
+lattice.outer   = outer_univ
+
 # Ring arrangement: outermost ring first in OpenMC HexLattice
 # Ring 3 (18 cells) = zone3, Ring 2 (12 cells) = zone2,
 # Ring 1 (6 cells) = zone1, Ring 0 (1 cell) = zone1
@@ -266,7 +274,10 @@ settings.temperature['method']    = 'interpolation'
 
 # CHANGE: source point at center of hex core (was at fuel_r offset in reference)
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.Point((0, 0, 0))
+    space=openmc.stats.Box(
+        [-core_radius, -core_radius, -core_height/2],
+        [ core_radius,  core_radius,  core_height/2]
+    )
 )
 settings.export_to_xml()
 
