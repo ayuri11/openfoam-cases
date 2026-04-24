@@ -1,549 +1,298 @@
 import numpy as np
 import openmc
-import xml.etree.ElementTree as ET
-import os
-from scipy import interpolate
-import time
-import sys
-
-def define_Geo_Mat_Set(cells_num_dic,parameters_dic,settings_dic,temp_phy_mat,controlRod_deep,empty_reflector_height):
-    # Check file
-    if os.path.exists('geometry.xml'):
-        os.remove('geometry.xml')
-    if os.path.exists('materials.xml'):
-        os.remove('materials.xml')
-    if os.path.exists('settings.xml'):
-        os.remove('settings.xml')
-    if os.path.exists('tallies.xml'):
-        os.remove('tallies.xml')
-
-    # defualt temperature: 1073.5K
-    if settings_dic['temperature_update']== True:
-        temp_defualt = temp_phy_mat.min()
-    else:
-        temp_defualt = 1073.5
-
-    # Structural Material HAYNES230
-    structure_HAY = openmc.Material(name='HAYNES230')
-    structure_HAY.set_density('g/cm3',8.97)
-    structure_HAY.add_element('Ni',0.57,'wo')
-    structure_HAY.add_element('Cr',0.22,'wo')
-    structure_HAY.add_element('W',0.14,'wo')
-    structure_HAY.add_element('Mo',0.02,'wo')
-    structure_HAY.add_element('Fe',0.01875,'wo')
-    structure_HAY.add_element('Co',0.03125,'wo')
-
-    # Structural Material SS316
-    structure_SS = openmc.Material(name='SS316')
-    structure_SS.set_density('g/cm3',7.99)
-    structure_SS.add_element('Ni',0.12,'wo')
-    structure_SS.add_element('Cr',0.17,'wo')
-    structure_SS.add_element('Mo',0.025,'wo')
-    structure_SS.add_element('Mn',0.02,'wo')
-    structure_SS.add_element('Fe',0.665,'wo')
-
-    #Control Rod Material B4C
-    ControlRod_B4C = openmc.Material(name='B4C')
-    ControlRod_B4C.set_density('g/cm3',2.52)
-    ControlRod_B4C.add_nuclide('B10',4,'ao')
-    ControlRod_B4C.add_element('C',1,'ao')
-
-    #Reflector Material BeO
-    Reflector_BeO = openmc.Material(name='BeO')
-    Reflector_BeO.set_density('g/cm3',3.025)
-    Reflector_BeO.add_element('Be',1,'ao')
-    Reflector_BeO.add_element('O',1,'ao')
-
-    #Coolant Na
-    Coolant_Na = openmc.Material(name='Na')
-    Coolant_Na.set_density('g/cm3',0.76)
-    Coolant_Na.add_element('Na',1,'ao')
-
-    # Instantiate a Materials collection
-    materials_file = openmc.Materials([structure_HAY, structure_SS, ControlRod_B4C, Reflector_BeO, Coolant_Na])
-
-
-    # Number of cells
-    n_r = cells_num_dic['n_r']
-    n_r_outer = cells_num_dic['n_r_outer']
-    n_h = cells_num_dic['n_h']
-    
-
-    # Effect of Temperature on density of fuel
-    fuel_list = []
-    density_mat = calUMoDensity(temp_phy_mat)
-
-    # Fuel U-10Mo
-    for j in range(n_h):
-        for i in range(n_r):
-            fuel_name = str((j+1)*10000+(i + 1)*100)
-            fuel = openmc.Material(name='U-10Mo '+ fuel_name)
-            fuel.set_density('g/cm3',density_mat[j,i])
-            fuel.add_element('Mo',0.1,'wo')
-            # fuel.add_nuclide('U235',0.1773,'wo') # for LEU (19.7%)
-            # fuel.add_nuclide('U238',0.7227,'wo')
-            fuel.add_nuclide('U235',0.837,'wo') # for HEU (93.0%)
-            fuel.add_nuclide('U238',0.063,'wo')
-            fuel_list.append(fuel)
-            materials_file.append(fuel)
-
-        for i in range(n_r_outer):
-            fuel_name = str((j+1)*10000+(i + n_r + 1)*100)
-            fuel = openmc.Material(name='U-10Mo '+ fuel_name)
-            fuel.set_density('g/cm3',density_mat[j,i+n_r])
-            fuel.add_element('Mo',0.1,'wo')
-            # fuel.add_nuclide('U235',0.1773,'wo') # for LEU (19.7%)
-            # fuel.add_nuclide('U238',0.7227,'wo')
-            fuel.add_nuclide('U235',0.837,'wo') # for HEU (93.0%)
-            fuel.add_nuclide('U238',0.063,'wo')
-            fuel_list.append(fuel)
-            materials_file.append(fuel)
-
-    # Export to "materials.xml"
-    materials_file.export_to_xml()
 
-    num_heat_pipe = 8
-
-    # Parameters of reactor
-    # Unit:cm
-
-    fuel_r = parameters_dic['fuel_r']
-    fuel_h = parameters_dic['fuel_h']
-
-    controlRod_r = parameters_dic['controlRod_r']
-    controlRod_h_max = parameters_dic['controlRod_h_max']
-    controlRod_l = parameters_dic['controlRod_l']
-
-    reflector_r = parameters_dic['reflector_r']
-    reflector_h = parameters_dic['reflector_h']
-
-    heat_pipe_R = parameters_dic['heat_pipe_R']
-    heat_pipe_r = parameters_dic['heat_pipe_r']
-
-    top_distance = parameters_dic['top_distance']
-    bottom_distance = parameters_dic['bottom_distance']
-
-    # Create cylinders for the fuel control rod and reflector
-    fuel_OD = openmc.ZCylinder(x0=0.0, y0=0.0, r=fuel_r)
-    controlRod_OD = openmc.ZCylinder(x0=0.0, y0=0.0, r=controlRod_r)
-    reflector_OD = openmc.ZCylinder(x0=0.0, y0=0.0, r=reflector_r, boundary_type='vacuum')
-
-    # Create planes for fuel control rod and reflector
-    reflector_TOP = openmc.ZPlane(z0 = (top_distance+fuel_h/2),boundary_type='vacuum')
-    reflector_BOTTOM = openmc.ZPlane(z0 = -(bottom_distance+fuel_h/2),boundary_type='vacuum')
-    reflector_empty_TOP = openmc.ZPlane(z0 = -(bottom_distance+fuel_h/2-empty_reflector_height))
-
-
-    fuel_TOP = openmc.ZPlane(z0 = fuel_h/2)
-    fuel_BOTTOM = openmc.ZPlane(z0 = -fuel_h/2)
-
-    controlRodSpace_TOP = openmc.ZPlane(z0 = (controlRod_h_max-bottom_distance-fuel_h/2))
-
-    # Create cylinders for heat pipes
-    heat_pipe_OD = openmc.ZCylinder(x0=fuel_r, y0=0, r=heat_pipe_R)
-
-    n_ang = num_heat_pipe
-    ang_mesh = np.pi/n_ang
-
-
-    r_mesh = np.linspace(controlRod_r,(fuel_r-heat_pipe_R),n_r+1)
-    r_outer_mesh = np.linspace(fuel_r-heat_pipe_R,fuel_r,n_r_outer+1)
-    h_mesh = np.linspace(-fuel_h/2,fuel_h/2,n_h+1)
-
-    line_1 = openmc.Plane(a=np.tan(-ang_mesh),b=-1.0,c=0.0,d=0.0,boundary_type='reflective')
-    line_2 = openmc.Plane(a=np.tan(ang_mesh),b=-1.0,c=0.0,d=0.0,boundary_type='reflective')
-
-    # Create volume vector and matrix
-    volume_vec = np.zeros(n_r+n_r_outer)
-    d_h = fuel_h/n_h
-
-    for i in range(n_r+n_r_outer):
-        if i >= n_r:
-            d = heat_pipe_R*(i-n_r)/n_r_outer
-            x_i = np.sqrt(2*heat_pipe_R*d-d*d)
-            d = heat_pipe_R*(i-n_r+1)/n_r_outer
-            x_i1 = np.sqrt(2*heat_pipe_R*d-d*d)
-            s = (x_i+x_i1)*heat_pipe_R/n_r_outer
-            volume_vec[i] = d_h*np.pi*(r_outer_mesh[i+1-n_r]*r_outer_mesh[i+1-n_r]-r_outer_mesh[i-n_r]*r_outer_mesh[i-n_r])/8-s
-        else:
-            volume_vec[i] = d_h*np.pi*(r_mesh[i+1]*r_mesh[i+1]-r_mesh[i]*r_mesh[i])/8
-
-    volume_mat = np.zeros((n_h,(n_r+n_r_outer)))
-    for i in range(n_h):
-        volume_mat[i,:] = volume_vec
-
-    # Create heat_pipe universe
-    heat_pipe_Inner = openmc.ZCylinder(r=heat_pipe_r)
-
-    coolant_cell = openmc.Cell(fill=Coolant_Na, region=(-heat_pipe_Inner & -reflector_TOP & +reflector_BOTTOM))
-    pipe_cell = openmc.Cell(fill=structure_HAY, region=(+heat_pipe_Inner & -reflector_TOP & +reflector_BOTTOM))
-
-    heat_pipe_universe = openmc.Universe(cells=(coolant_cell, pipe_cell))
-
-    # Create a Universe to encapsulate a fuel pin
-    pin_cell_universe = openmc.Universe(name='U-10Mo Pin')
-
-    # Create fine-fuel-cell (num of cells: n_r + n_r_outer)
-    fuel_cell_list = []
-    fuel_cell_ID_list = []
-
-
-    k = 0
-    for j in range(n_h):
-        cir_top = openmc.ZPlane(z0 = h_mesh[j+1])
-        cir_bottom = openmc.ZPlane(z0 = h_mesh[j])
-        for i in range(n_r):
-            cir_in = openmc.ZCylinder(r=r_mesh[i])
-            cir_out = openmc.ZCylinder(r=r_mesh[i+1])
-            fuel_cell = openmc.Cell()
-            fuel_cell.fill = fuel_list[k]
-            k = k+1
-            fuel_cell.region = +cir_in & -cir_out & +cir_bottom &-cir_top
-            fuel_cell.temperature = temp_phy_mat[j,i]
-            fuel_cell.id = (j+1)*10000+(i + 1)*100
-            fuel_cell_ID_list.append((j+1)*10000+(i + 1)*100)
-            fuel_cell_list.append(fuel_cell)
-            pin_cell_universe.add_cell(fuel_cell)
-
-        for i in range(n_r_outer):
-            cir_in = openmc.ZCylinder(r=r_outer_mesh[i])
-            cir_out = openmc.ZCylinder(r=r_outer_mesh[i+1])
-            fuel_cell = openmc.Cell()
-            fuel_cell.fill = fuel_list[k]
-            k = k+1
-            fuel_cell.region = +cir_in & -cir_out & +heat_pipe_OD & +cir_bottom &-cir_top
-            fuel_cell.temperature = temp_phy_mat[j,i+n_r]
-            fuel_cell.id = (j+1)*10000+(n_r + i + 1)*100
-            fuel_cell_ID_list.append((j+1)*10000+(n_r + i + 1)*100)
-            fuel_cell_list.append(fuel_cell)
-            pin_cell_universe.add_cell(fuel_cell)
-
-    # Create control rod Cell
-    controlRod_TOP = openmc.ZPlane(z0 = (controlRod_deep-fuel_h/2-bottom_distance))
-    controlRod_TOP.name = 'controlRod_TOP'
-    if controlRod_deep < controlRod_h_max:
-        controlRod_empty_cell = openmc.Cell(name='Control Rod Empty')
-        controlRod_empty_cell.region = -controlRod_OD & +controlRod_TOP & -controlRodSpace_TOP
-        pin_cell_universe.add_cell(controlRod_empty_cell)
-
-
-    if controlRod_deep > 0:
-        controlRod_cell = openmc.Cell(name='Control Rod')
-        controlRod_cell.fill = ControlRod_B4C
-        controlRod_cell.region = -controlRod_OD & +reflector_BOTTOM & -controlRod_TOP
-        controlRod_cell.tempearture = temp_defualt
-        pin_cell_universe.add_cell(controlRod_cell)
-
-    # Create heat pipe Cell
-    heat_pipe_cell = openmc.Cell(name='Heat Pipe')
-    heat_pipe_cell.fill = heat_pipe_universe
-    heat_pipe_cell.region = -heat_pipe_OD & +reflector_BOTTOM & -reflector_TOP
-    heat_pipe_cell.temperature = temp_defualt
-    heat_pipe_cell.translation = (fuel_r,0,0)
-    pin_cell_universe.add_cell(heat_pipe_cell)
-
-    # To be edited
-    # Create reflector Cell
-
-    if empty_reflector_height >0:
-        reflector_radial_empty_cell = openmc.Cell(name='Radial Reflector Empty')
-        reflector_radial_empty_cell.region = +fuel_OD & +heat_pipe_OD & +reflector_BOTTOM & -reflector_empty_TOP
-        pin_cell_universe.add_cell(reflector_radial_empty_cell)
-
-        reflector_radial_cell = openmc.Cell(name='Radial Reflector')
-        reflector_radial_cell.fill = Reflector_BeO
-        reflector_radial_cell.region = +fuel_OD & +heat_pipe_OD & +reflector_empty_TOP & -reflector_TOP
-        reflector_radial_cell.temperature = temp_defualt
-        pin_cell_universe.add_cell(reflector_radial_cell)
-    else:
-        reflector_radial_cell = openmc.Cell(name='Radial Reflector')
-        reflector_radial_cell.fill = Reflector_BeO
-        reflector_radial_cell.region = +fuel_OD & +heat_pipe_OD & +reflector_BOTTOM & -reflector_TOP
-        reflector_radial_cell.temperature = temp_defualt
-        pin_cell_universe.add_cell(reflector_radial_cell)
-
-
-    reflector_bottom_cell = openmc.Cell(name='Bottom Reflector')
-    reflector_bottom_cell.fill = Reflector_BeO
-    reflector_bottom_cell.region = +controlRod_OD & +heat_pipe_OD & -fuel_OD  & -fuel_BOTTOM & +reflector_BOTTOM
-    reflector_bottom_cell.temperature = temp_defualt
-    pin_cell_universe.add_cell(reflector_bottom_cell)
-
-    reflector_top_cell = openmc.Cell(name='Top Reflector')
-    reflector_top_cell.fill = Reflector_BeO
-    reflector_top_cell.region = +heat_pipe_OD & -fuel_OD  & +controlRodSpace_TOP & -reflector_TOP
-    reflector_top_cell.region = reflector_top_cell.region | (+controlRod_OD & +heat_pipe_OD & -fuel_OD & +fuel_TOP & -controlRodSpace_TOP)
-    reflector_top_cell.temperature = temp_defualt
-    pin_cell_universe.add_cell(reflector_top_cell)
-
-    # Create root Cell
-    root_cell = openmc.Cell(name='root cell')
-    root_cell.fill = pin_cell_universe
-
-    # Add boundary planes
-    root_cell.region = -reflector_OD & +line_2 & -line_1 & +reflector_BOTTOM & -reflector_TOP
-
-    # Create root Universe
-    root_universe = openmc.Universe(universe_id=0, name='root universe')
-    root_universe.add_cell(root_cell)
-
-    # Create Geometry and set root Universe
-    geometry = openmc.Geometry(root_universe)
-
-    # Export to "geometry.xml"
-    geometry.export_to_xml()
-
-    # Instantiate a Settings object
-    settings_file = openmc.Settings()
-    settings_file.batches = settings_dic['batches']
-    settings_file.inactive = settings_dic['inactive']
-    settings_file.particles = settings_dic['particles']
-    settings_file.temperature['multipole']= True
-    settings_file.temperature['method']= 'interpolation'
-
-    settings_file.source = openmc.Source(space=openmc.stats.Point((15,0,0)))
-    # Export to "settings.xml"
-    settings_file.export_to_xml()
-
-    # Instantiate an empty Tallies object
-    tallies_file = openmc.Tallies()
-
-    for i in range(len(fuel_cell_ID_list)):
-        tally = openmc.Tally(name='cell tally '+str(fuel_cell_ID_list[i]))
-        tally.filters = [openmc.DistribcellFilter(fuel_cell_ID_list[i])]
-        tally.scores = ['heating','flux']
-        tallies_file.append(tally)
-
-
-    # Export to "tallies.xml"
-    tallies_file.export_to_xml()
-    
-    return volume_mat,fuel_cell_ID_list
-
-def postProcess(nodes_dic,volume_mat,temp_nodes_vec,fuel_nodes_index,parameters_dic,cells_num_dic,settings_dic,fuel_cell_ID_list):
-
-    #To be edited
-
-
-    # Parameters of heat pipes
-    fuel_r = parameters_dic['fuel_r']
-    controlRod_r = parameters_dic['controlRod_r']
-    heat_pipe_R = parameters_dic['heat_pipe_R']
-    fuel_h = parameters_dic['fuel_h']
-
-    batches = settings_dic['batches']
-
-    row = np.size(volume_mat,0)
-    col = np.size(volume_mat,1)
-    # Get tally data
-    heat_tot_vec = np.zeros(row*col)
-    heat_dev_vec = np.zeros(row*col)
-
-    flux_tot_vec = np.zeros(row*col)
-    flux_dev_vec = np.zeros(row*col)
-
-    sp = openmc.StatePoint('statepoint.{}.h5'.format(batches))
-    k_eff = sp.k_combined
-
-    for i in range(len(fuel_cell_ID_list)):
-        t = sp.get_tally(name='cell tally '+str(fuel_cell_ID_list[i]))
-        heat_tot_vec[i] = t.get_values(scores=['heating'],value='mean').item()
-        heat_dev_vec[i] = t.get_values(scores=['heating'],value='std_dev').item()
-        flux_tot_vec[i] = t.get_values(scores=['flux'],value='mean').item()
-        flux_dev_vec[i] = t.get_values(scores=['flux'],value='std_dev').item()
-    del sp
-
-    tally_dic = {'heat_mean':heat_tot_vec,'heat_dev':heat_dev_vec,'flux_mean':flux_tot_vec,'flux_dev':flux_dev_vec}
-
-    heat_tot_mat = heat_tot_vec.reshape((row,col),order='C')
-    # Define the power factor
-    heat_power = parameters_dic['heat_power']
-    heat_power = heat_power/8 #Power: 4kW 
-    heat_power_origin = heat_tot_mat.sum()
-    k_power = heat_power/(heat_power_origin*1.6022e-19) # Energy unit: eV---> J
-    
-    heat_ave_mat = heat_tot_mat*1.6022e-19*k_power/volume_mat
-
-    #Get position of nodes
-    x = nodes_dic['x']
-    y = nodes_dic['y']
-    z = nodes_dic['z']
-
-    #Get cells mesh 
-    n_r = cells_num_dic['n_r']
-    n_r_outer = cells_num_dic['n_r_outer']
-    n_h = cells_num_dic['n_h']
-
-    r_inner_mesh = np.linspace(controlRod_r,(fuel_r-heat_pipe_R),n_r+1)
-    r_outer_mesh = np.linspace(fuel_r-heat_pipe_R,fuel_r,n_r_outer+1)
-    r_mesh = np.hstack((r_inner_mesh[0:len(r_inner_mesh)],r_outer_mesh[1:len(r_outer_mesh)]))
-
-    h_mesh = np.linspace(-fuel_h/2,fuel_h/2,n_h+1)
-
-    # Get the vector of distance
-    r_axe = np.zeros(n_r+n_r_outer)
-    r_axe[0:n_r] = (r_mesh[0:n_r]+r_mesh[1:(n_r+1)])/2
-    r_axe[n_r:(n_r+n_r_outer)]= (r_outer_mesh[0:n_r_outer]+r_outer_mesh[1:(n_r_outer+1)])/2
-
-    h_axe = np.zeros(n_h)
-    h_axe[0:n_h] = (h_mesh[0:n_h]+h_mesh[1:(n_h+1)])/2
-
-    #Interpolate
-
-    heat_nodes_vec = np.zeros(len(x))
-
-    x_fuel = x[fuel_nodes_index]
-    y_fuel = y[fuel_nodes_index]
-    z_fuel = z[fuel_nodes_index]
-    # r_fuel = np.sqrt(x_fuel**2+y_fuel**2)
-
-    # f = interpolate.interp2d(r_axe,h_axe,heat_ave_mat, kind='linear',fill_value = 0.0)
-    # heat_fuel_nodes_vec = f(r_fuel,z_fuel).diagonal()
-    heat_fuel_nodes_vec = np.zeros(len(x_fuel))
-
-
-    for i in range(row):
-        for j in range(col):
-            index = np.where(((x_fuel**2+y_fuel**2)>=(r_mesh[j]**2)) & ((x_fuel**2+y_fuel**2)<(r_mesh[j+1]**2)) & (z_fuel>=h_mesh[i]) & (z_fuel<h_mesh[i+1]) & ((x_fuel-fuel_r)*(x_fuel-fuel_r)+y_fuel*y_fuel>=(heat_pipe_R**2)))
-            heat_fuel_nodes_vec[index] = heat_ave_mat[i,j]
-
-
-
-    # Temp = 1173.5 # Temperature(approximation), unit: K
-    # lamb = (0.606+0.0351*Temp)*0.01
-    # Thermal conductivity. unit: W/(K.cm)
-    heat_nodes_vec[fuel_nodes_index] = heat_fuel_nodes_vec
-
-    lamb = calUMoThermalConduct(temp_nodes_vec)
-    points_force = -heat_nodes_vec/lamb
-
-    editForceFile_Temp(x,y,z,points_force,'Force')
-
-
-    return k_eff, tally_dic
-
-
-def editCellTemperature(fuel_temp,fuel_cell_ID_list):
-    #fuel_temp(matrix)
-    #fuel_cell_ID_list(list)
-    row = np.size(fuel_temp,0)
-    col = np.size(fuel_temp,1)
-    Y = fuel_temp.reshape(((row*col)),order='C')
-
-    tree = ET.parse('geometry.xml')
-    root = tree.getroot()
-
-    k = 0
-    for cell in root.iter('cell'):
-        if cell.attrib['id']==str(fuel_cell_ID_list[k]):
-            cell.attrib['temperature'] = str(Y[k])
-            k = k+1
-        else:
-            continue
-    tree.write('geometry.xml')
-
-def editForceFile_Temp(x,y,z,points_force,file_name):
-    mat = np.zeros((len(x),4))
-    mat[:,0] = x
-    mat[:,1] = y
-    mat[:,2] = z
-    mat[:,3] = points_force
-
-    np.set_printoptions(threshold=sys.maxsize)
-    
-    str_tot = str(mat)
-    str_tot = str_tot.replace('[','')
-    str_tot = str_tot.replace(']','')
-    if ',' in str_tot:
-        str_tot = str_tot.replace(',',' ')
-
-    if os.path.exists(file_name +'.pts'):
-        tree = ET.parse(file_name+'.pts')
-        root = tree.getroot()
-        for points in root.findall('POINTS'):
-            points.text = str_tot
-        tree.write(file_name+'.pts',encoding="utf-8", xml_declaration=True)
-    else:
-        NEKTAR = ET.Element('NEKTAR')
-        POINTS = ET.SubElement(NEKTAR,'POINTS',{'DIM':'3','FIELDS':'u'})
-        POINTS.text = str_tot
-        tree = ET.ElementTree(NEKTAR) 
-        tree.write(file_name+'.pts',encoding="utf-8", xml_declaration=True)
-
-def getCellTemperature(nodes_dic,temp_nodes_vec,fuel_nodes_index,parameters_dic,cells_num_dic):
-    #Get position of nodes
-    x = nodes_dic['x']
-    y = nodes_dic['y']
-    z = nodes_dic['z']
-
-
-    x_fuel = x[fuel_nodes_index]
-    y_fuel = y[fuel_nodes_index]
-    z_fuel = z[fuel_nodes_index]
-
-    temp_fuel_nodes_vec = temp_nodes_vec[fuel_nodes_index]
-
-    #Get cells mesh 
-    n_r = cells_num_dic['n_r']
-    n_r_outer = cells_num_dic['n_r_outer']
-    n_h = cells_num_dic['n_h']
-
-    controlRod_r = parameters_dic['controlRod_r']
-    fuel_r = parameters_dic['fuel_r']
-    heat_pipe_R = parameters_dic['heat_pipe_R']
-    fuel_h = parameters_dic['fuel_h']
-
-    r_inner_mesh = np.linspace(controlRod_r,(fuel_r-heat_pipe_R),n_r+1)
-    r_outer_mesh = np.linspace(fuel_r-heat_pipe_R,fuel_r,n_r_outer+1)
-    r_mesh = np.hstack((r_inner_mesh[0:len(r_inner_mesh)],r_outer_mesh[1:len(r_outer_mesh)]))
-
-    h_mesh = np.linspace(-fuel_h/2,fuel_h/2,n_h+1)
-
-    temp_cells_mat = np.zeros((n_h,(n_r+n_r_outer)))
-
-
-
-    for i in range(n_h):
-        for j in range((n_r+n_r_outer)):
-            index = np.where(((x_fuel**2+y_fuel**2)>=(r_mesh[j]**2)) & ((x_fuel**2+y_fuel**2)<(r_mesh[j+1]**2)) & (z_fuel>=h_mesh[i]) & (z_fuel<h_mesh[i+1]) & ((x_fuel-fuel_r)**2+y_fuel**2>=(heat_pipe_R**2)))
-            if len(temp_fuel_nodes_vec[index])==0:
-                if j>0:
-                    temp_cells_mat[i,j] =  temp_cells_mat[i,j-1]
-                else:
-                    temp_cells_mat[i,j] =  temp_cells_mat[i-1,j]
-
-            else:
-                temp_cells_mat[i,j] = temp_fuel_nodes_vec[index].sum()/len(temp_fuel_nodes_vec[index])
-
-    return temp_cells_mat
-
-def getFuelNodesIndex(nodes_dic,parameters_dic):
-
-    x = nodes_dic['x']
-    y = nodes_dic['y']
-    z = nodes_dic['z']
-
-    fuel_h = parameters_dic['fuel_h']
-    controlRod_r = parameters_dic['controlRod_r']
-    fuel_r = parameters_dic['fuel_r']
-    heat_pipe_R = parameters_dic['heat_pipe_R']
-
-    fuel_nodes_index = np.where(((x**2+y**2)>=(controlRod_r**2)) & ((x**2+y**2)<=(fuel_r**2)) & (z>=-fuel_h/2) & (z<=fuel_h/2) & ((x-fuel_r)*(x-fuel_r)+y*y>=(heat_pipe_R**2)))
-    
-    return fuel_nodes_index
-
-def calUMoThermalConduct(temp_nodes_vec):
-    # Temperature, unit: K
-    # lamb = (0.606+0.0351*Temp)*0.01
-    # Thermal conductivity. unit: W/(K.cm)
-
-    lamb = (0.606+0.0351*temp_nodes_vec)*0.01
-    return lamb
-
-def calUMoDensity(temp_phy_mat):
-    # Density, unit: g/cm3
-    # Temperature, unit: K
-    # density = 17.15-(8.63e-4+2.77e-5)*(temperature-273.5+20)
-    # Only for U-10Mo 
-    density_mat = 17.15-(8.63e-4+2.77e-5)*(temp_phy_mat-273.5+20)
-    return density_mat
+# =============================================================================
+# MATERIALS
+# =============================================================================
+# REFERENCE CODE USED: U-10Mo fuel (HEU 93%), single enrichment
+# OUR HPR USES: UO2 fuel, three HALEU enrichment zones
+# CHANGE: entire fuel material definition
+
+# ---- KEEP FROM REFERENCE: structural materials (just update names/values) ----
+
+# KEEP - same cladding material as reference (Haynes 230)
+haynes = openmc.Material(name='Haynes230')
+haynes.set_density('g/cm3', 8.97)
+haynes.add_element('Ni', 0.57, 'wo')
+haynes.add_element('Cr', 0.22, 'wo')
+haynes.add_element('W',  0.14, 'wo')
+haynes.add_element('Mo', 0.02, 'wo')
+haynes.add_element('Fe', 0.01875, 'wo')
+haynes.add_element('Co', 0.03125, 'wo')
+
+# KEEP - same B4C control rod as reference
+# CHANGE - add B-10 enrichment (96%) per your specs
+b4c = openmc.Material(name='B4C')
+b4c.set_density('g/cm3', 2.52)
+b4c.add_nuclide('B10', 0.96, 'wo')  # CHANGE: was add_nuclide('B10',4,'ao') in reference
+b4c.add_nuclide('B11', 0.04, 'wo')  # CHANGE: added B11 remainder
+b4c.add_element('C', 1.0, 'ao')
+
+# KEEP - same BeO reflector as reference
+beo = openmc.Material(name='BeO')
+beo.set_density('g/cm3', 3.025)
+beo.add_element('Be', 1.0, 'ao')
+beo.add_element('O',  1.0, 'ao')
+
+# KEEP - same sodium coolant as reference
+sodium = openmc.Material(name='Na')
+sodium.set_density('g/cm3', 0.76)
+sodium.add_element('Na', 1.0, 'ao')
+
+# ---- CHANGE: remove U-10Mo, replace with UO2 three-zone HALEU ----
+
+# CHANGE: new material - graphite moderator monolith (not in reference)
+graphite = openmc.Material(name='Graphite')
+graphite.set_density('g/cm3', 1.7)
+graphite.add_element('C', 1.0, 'ao')
+graphite.add_s_alpha_beta('c_Graphite')  # thermal scattering law
+
+# CHANGE: Zone 1 - central region, 12% enrichment (replaces U-10Mo entirely)
+fuel_zone1 = openmc.Material(name='UO2_12pct')
+fuel_zone1.set_density('g/cm3', 10.4)
+fuel_zone1.add_nuclide('U235', 0.12,  'wo')
+fuel_zone1.add_nuclide('U238', 0.88,  'wo')
+fuel_zone1.add_element('O',    2.0,   'ao')
+
+# CHANGE: Zone 2 - middle region, 15% enrichment
+fuel_zone2 = openmc.Material(name='UO2_15pct')
+fuel_zone2.set_density('g/cm3', 10.4)
+fuel_zone2.add_nuclide('U235', 0.15,  'wo')
+fuel_zone2.add_nuclide('U238', 0.85,  'wo')
+fuel_zone2.add_element('O',    2.0,   'ao')
+
+# CHANGE: Zone 3 - outer region, 19.75% HALEU enrichment
+fuel_zone3 = openmc.Material(name='UO2_1975pct')
+fuel_zone3.set_density('g/cm3', 10.4)
+fuel_zone3.add_nuclide('U235', 0.1975, 'wo')
+fuel_zone3.add_nuclide('U238', 0.8025, 'wo')
+fuel_zone3.add_element('O',    2.0,    'ao')
+
+# CHANGE: updated materials list (removed U-10Mo, added graphite + 3 fuel zones)
+materials = openmc.Materials([
+    haynes, b4c, beo, sodium,
+    graphite, fuel_zone1, fuel_zone2, fuel_zone3
+])
+materials.export_to_xml()
+
+
+# =============================================================================
+# GEOMETRY - PARAMETERS
+# =============================================================================
+# REFERENCE: annular cylindrical geometry, 1/8 symmetry
+# AYURI HPR: hexagonal lattice of unit cells, 1/12 symmetry
+# CHANGE: all geometry below is new - reference geometry does not apply
+
+# KEEP concept: define dimensions as variables first, not hardcoded
+# CHANGE: all values updated to your HPR specs (units: cm)
+
+core_height    = 160.0   # CHANGE: was fuel_h in reference, now 160cm per your specs
+hp_radius      = 0.795   # KEEP concept, CHANGE value: 7.95mm OD/2 = 0.795cm
+hp_wall_thick  = 0.089   # NEW: Haynes 230 wall thickness ~0.9mm
+fuel_pin_r     = 0.635   # NEW: fuel pin radius (to be confirmed from your refs)
+ctrl_rod_r     = 0.795   # NEW: same OD as heat pipe per your specs
+cell_flat      = 5.5     # CHANGE: unit cell flat-to-flat 55mm = 5.5cm
+
+# Axial reflector thickness per your methodology outline
+axial_ref_top    = 1.25  # NEW: 12.5cm top BeO reflector
+axial_ref_bottom = 1.25  # NEW: 12.5cm bottom BeO reflector
+
+# Total height including reflectors
+total_height = core_height + axial_ref_top + axial_ref_bottom
+
+# Radial reflector per your specs (~45cm active core radius)
+core_radius      = 45.0  # CHANGE value
+reflector_radius = 65.0  # NEW: outer reflector boundary
+
+
+# =============================================================================
+# GEOMETRY - SURFACES
+# =============================================================================
+# REFERENCE: ZCylinder rings + ZPlanes for annular geometry
+# AYURI HPR: hexagonal prism surfaces for unit cells
+# CHANGE: replace ZCylinder rings with hexagonal surfaces
+
+# KEEP: ZPlanes for axial boundaries (same concept as reference)
+top_boundary    = openmc.ZPlane(z0=+total_height/2, boundary_type='vacuum')
+bottom_boundary = openmc.ZPlane(z0=-total_height/2, boundary_type='vacuum')
+fuel_top        = openmc.ZPlane(z0=+core_height/2)
+fuel_bottom     = openmc.ZPlane(z0=-core_height/2)
+top_ref_plane   = openmc.ZPlane(z0=+core_height/2)   # BeO axial reflector start
+bot_ref_plane   = openmc.ZPlane(z0=-core_height/2)   # BeO axial reflector start
+
+# KEEP: outer boundary cylinder (same concept as reference reflector_OD)
+outer_boundary  = openmc.ZCylinder(r=reflector_radius, boundary_type='vacuum')
+
+# CHANGE: symmetry planes for 1/12 hex (reference used 1/8 with 2 planes)
+# 1/12 of hexagon = 30 degree slice
+# Two planes at 0 deg and 30 deg from x-axis
+import math
+angle1 = 0.0                  # 0 degrees
+angle2 = math.radians(30.0)   # 30 degrees = 1/12 of 360
+sym_plane_1 = openmc.Plane(
+    a=math.sin(angle1), b=-math.cos(angle1), c=0, d=0,
+    boundary_type='reflective'
+)
+sym_plane_2 = openmc.Plane(
+    a=math.sin(angle2), b=-math.cos(angle2), c=0, d=0,
+    boundary_type='reflective'
+)
+
+
+# =============================================================================
+# GEOMETRY - UNIT CELL UNIVERSE
+# =============================================================================
+# REFERENCE: pin_cell_universe with annular fuel rings
+# AYURI HPR: hexagonal unit cell with 12 fuel pins + 6 HPs + 1 central rod
+# CHANGE: completely new unit cell definition for each zone
+
+# --- Single heat pipe universe (KEEP concept from reference, same structure) ---
+hp_inner = openmc.ZCylinder(r=hp_radius - hp_wall_thick)  # sodium vapor core
+hp_outer = openmc.ZCylinder(r=hp_radius)                  # Haynes 230 wall
+
+sodium_cell = openmc.Cell(fill=sodium,  region=-hp_inner)
+wall_cell   = openmc.Cell(fill=haynes,  region=+hp_inner & -hp_outer)
+hp_universe = openmc.Universe(cells=[sodium_cell, wall_cell])
+
+# --- Single fuel pin universe (CHANGE: UO2 replaces U-10Mo) ---
+fuel_pin_surf = openmc.ZCylinder(r=fuel_pin_r)
+
+# Zone 1 pin (central region)
+fp1_fuel = openmc.Cell(fill=fuel_zone1, region=-fuel_pin_surf)
+fp1_mod  = openmc.Cell(fill=graphite,   region=+fuel_pin_surf)
+fp1_universe = openmc.Universe(cells=[fp1_fuel, fp1_mod])
+
+# Zone 2 pin (middle region)
+fp2_fuel = openmc.Cell(fill=fuel_zone2, region=-fuel_pin_surf)
+fp2_mod  = openmc.Cell(fill=graphite,   region=+fuel_pin_surf)
+fp2_universe = openmc.Universe(cells=[fp2_fuel, fp2_mod])
+
+# Zone 3 pin (outer region)
+fp3_fuel = openmc.Cell(fill=fuel_zone3, region=-fuel_pin_surf)
+fp3_mod  = openmc.Cell(fill=graphite,   region=+fuel_pin_surf)
+fp3_universe = openmc.Universe(cells=[fp3_fuel, fp3_mod])
+
+# --- Control rod universe (KEEP concept, same material) ---
+cr_surf = openmc.ZCylinder(r=ctrl_rod_r)
+cr_cell = openmc.Cell(fill=b4c,      region=-cr_surf)
+cr_mod  = openmc.Cell(fill=graphite, region=+cr_surf)
+cr_universe = openmc.Universe(cells=[cr_cell, cr_mod])
+
+
+# =============================================================================
+# GEOMETRY - HEX LATTICE
+# =============================================================================
+# REFERENCE: no lattice - single pin with angular symmetry
+# AYURI HPR: HexLattice of 37 unit cells
+# CHANGE: entirely new section - does not exist in reference code
+
+# ADD: define the hex lattice for the full core
+# 37 cells = 3 rings (R=3: 1 + 6 + 12 + 18 = 37)
+# Ring 0 (center, 1 cell): Zone 1 - control rod center, 12% fuel
+# Ring 1 (6 cells): Zone 1 - control rod center, 12% fuel
+# Ring 2 (12 cells): Zone 2 - extra HP center, 15% fuel
+# Ring 3 (18 cells): Zone 3 - extra HP center, 19.75% fuel
+
+# NOTE: each universe here represents one full unit cell
+# For now, pin universes are used as placeholders
+# Full unit cell universes with all 12 pins + 6 HPs to be built next
+
+# Placeholder: zone universes (replace with full unit cell universes later)
+zone1_cell = openmc.Cell(fill=fuel_zone1)
+zone1_univ = openmc.Universe(cells=[zone1_cell])
+
+zone2_cell = openmc.Cell(fill=fuel_zone2)
+zone2_univ = openmc.Universe(cells=[zone2_cell])
+
+zone3_cell = openmc.Cell(fill=fuel_zone3)
+zone3_univ = openmc.Universe(cells=[zone3_cell])
+
+# ADD: HexLattice definition
+lattice = openmc.HexLattice()
+lattice.center = (0.0, 0.0)
+lattice.pitch  = (cell_flat,)           # flat-to-flat pitch in cm
+lattice.orientation = 'x'              # flat side faces x-axis
+
+# Ring arrangement: outermost ring first in OpenMC HexLattice
+# Ring 3 (18 cells) = zone3, Ring 2 (12 cells) = zone2,
+# Ring 1 (6 cells) = zone1, Ring 0 (1 cell) = zone1
+lattice.universes = [
+    [zone3_univ] * 18,   # CHANGE: outer ring - 19.75% HALEU
+    [zone2_univ] * 12,   # CHANGE: middle ring - 15%
+    [zone1_univ] * 6,    # CHANGE: inner ring - 12%
+    [zone1_univ],        # CHANGE: center cell - 12%
+]
+
+# ADD: fill the lattice into a containing cell
+lattice_cell = openmc.Cell(fill=lattice)
+core_universe = openmc.Universe(cells=[lattice_cell])
+
+
+# =============================================================================
+# GEOMETRY - ROOT CELL AND GEOMETRY EXPORT
+# =============================================================================
+# KEEP: root cell with boundary conditions
+# CHANGE: use 1/12 symmetry planes instead of 1/8
+
+root_cell = openmc.Cell(name='root cell')
+root_cell.fill   = core_universe
+root_cell.region = (
+    -outer_boundary
+    & +bottom_boundary
+    & -top_boundary
+    & +sym_plane_1      # CHANGE: 1/12 symmetry 
+    & -sym_plane_2
+)
+
+root_universe = openmc.Universe(universe_id=0, name='root universe')
+root_universe.add_cell(root_cell)
+
+geometry = openmc.Geometry(root_universe)
+geometry.export_to_xml()
+
+
+# =============================================================================
+# SETTINGS
+# =============================================================================
+# KEEP: same settings structure
+# CHANGE: source point moved to center of hex core
+
+settings = openmc.Settings()
+settings.batches   = 100    # CHANGE: increase later for production run
+settings.inactive  = 20     # KEEP: same as reference
+settings.particles = 1000   # CHANGE: increase to 10000+ for production run
+settings.temperature['multipole'] = True
+settings.temperature['method']    = 'interpolation'
+
+# CHANGE: source point at center of hex core (was at fuel_r offset in reference)
+settings.source = openmc.IndependentSource(
+    space=openmc.stats.Point((0, 0, 0))
+)
+settings.export_to_xml()
+
+
+# =============================================================================
+# TALLIES
+# =============================================================================
+# REFERENCE: DistribcellFilter per fuel cell
+# AYURI HPR: mesh tally for spatial power distribution
+# CHANGE: replace per-cell tallies with regular mesh tally
+
+# ADD: cylindrical mesh tally covering active core
+# NA >= 14 axial slices per your methodology requirement
+mesh = openmc.RegularMesh()
+mesh.dimension = [1, 1, 14]                      # CHANGE: 14 axial slices minimum
+mesh.lower_left  = [-core_radius, -core_radius, -core_height/2]
+mesh.upper_right = [ core_radius,  core_radius,  core_height/2]
+
+mesh_filter = openmc.MeshFilter(mesh)
+
+# KEEP concept: heating and flux tallies (same scores as reference)
+tally = openmc.Tally(name='power_distribution')
+tally.filters = [mesh_filter]
+tally.scores  = ['heating', 'flux']   # KEEP: same as reference
+
+tallies = openmc.Tallies([tally])
+tallies.export_to_xml()
+
+print("All XML files exported. Run: openmc")
