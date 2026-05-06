@@ -1,14 +1,13 @@
 import numpy as np
 import openmc
+#line 1-2: imports necessary math library and neutronics simulation library
 
 # =============================================================================
-# MATERIALS
+# DEFINING MATERIALS SELECTED (line 6 -76)
 # =============================================================================
 # REFERENCE CODE USED: U-10Mo fuel (HEU 93%), single enrichment
 # OUR HPR USES: UO2 fuel, three HALEU enrichment zones
 # CHANGE: entire fuel material definition
-
-# ---- KEEP FROM REFERENCE: structural materials (just update names/values) ----
 
 # KEEP - same cladding material as reference (Haynes 230)
 haynes = openmc.Material(name='Haynes230')
@@ -78,7 +77,7 @@ materials.export_to_xml()
 
 
 # =============================================================================
-# GEOMETRY - PARAMETERS
+# DEFINING GEOMETRY - PARAMETERS (line 80 - 105)
 # =============================================================================
 # REFERENCE: annular cylindrical geometry, 1/8 symmetry
 # AYURI HPR: hexagonal lattice of unit cells, 1/12 symmetry
@@ -107,7 +106,7 @@ reflector_radius = 65.0  # NEW: outer reflector boundary
 
 
 # =============================================================================
-# GEOMETRY - SURFACES
+# GEOMETRY - SURFACES (line 109-139)
 # =============================================================================
 # REFERENCE: ZCylinder rings + ZPlanes for annular geometry
 # AYURI HPR: hexagonal prism surfaces for unit cells
@@ -141,7 +140,7 @@ sym_plane_2 = openmc.Plane(
 
 
 # =============================================================================
-# GEOMETRY - UNIT CELL UNIVERSE
+# GEOMETRY - UNIT CELL UNIVERSE (line 143-179)
 # =============================================================================
 # REFERENCE: pin_cell_universe with annular fuel rings
 # AYURI HPR: hexagonal unit cell with 12 fuel pins + 6 HPs + 1 central rod
@@ -181,7 +180,7 @@ cr_universe = openmc.Universe(cells=[cr_cell, cr_mod])
 
 
 # =============================================================================
-# GEOMETRY - HEX LATTICE
+# GEOMETRY - HEX LATTICE (line 183-235)
 # =============================================================================
 # REFERENCE: no lattice - single pin with angular symmetry
 # AYURI HPR: HexLattice of 37 unit cells
@@ -237,7 +236,7 @@ core_universe = openmc.Universe(cells=[lattice_cell])
 
 
 # =============================================================================
-# GEOMETRY - ROOT CELL AND GEOMETRY EXPORT
+# GEOMETRY - ROOT CELL AND GEOMETRY EXPORT (line 239-258)
 # =============================================================================
 # KEEP: root cell with boundary conditions
 # CHANGE: use 1/12 symmetry planes instead of 1/8
@@ -260,7 +259,7 @@ geometry.export_to_xml()
 
 
 # =============================================================================
-# SETTINGS
+# SETTINGS (that dictate how the Monte Carlo neutron simulation runs, line 262-281)
 # =============================================================================
 # KEEP: same settings structure
 # CHANGE: source point moved to center of hex core
@@ -283,7 +282,7 @@ settings.export_to_xml()
 
 
 # =============================================================================
-# TALLIES
+# TALLIES (defining key outputs; what is measured during the run; line 285-306)
 # =============================================================================
 # REFERENCE: DistribcellFilter per fuel cell
 # AYURI HPR: mesh tally for spatial power distribution
@@ -306,4 +305,4 @@ tally.scores  = ['heating', 'flux']   # KEEP: same as reference
 tallies = openmc.Tallies([tally])
 tallies.export_to_xml()
 
-print("All XML files exported. Run: openmc")
+print("All XML files exported. Run: openmc") #feed into openfoam as fvModels
