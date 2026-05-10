@@ -17,7 +17,7 @@ haynes.add_element('W',  0.14, 'wo')
 haynes.add_element('Mo', 0.02, 'wo')
 haynes.add_element('Fe', 0.01875, 'wo')
 haynes.add_element('Co', 0.03125, 'wo')
-# weight fraction must sum to 1
+# weight fraction must sum to 1; Haynes230 is made up of the stated elements in %
 
 # KEEP - same B4C control rod as reference
 # CHANGE - add B-10 enrichment 
@@ -31,7 +31,7 @@ b4c.add_element('C',   1.0,  'ao')  # 1 carbon atom
 # KEEP - same BeO reflector as reference
 beo = openmc.Material(name='BeO')
 beo.set_density('g/cm3', 3.025)
-beo.add_element('Be', 1.0, 'ao')
+beo.add_element('Be', 1.0, 'ao') #BeO stoich 1:1
 beo.add_element('O',  1.0, 'ao')
 
 # KEEP - same sodium coolant as reference
@@ -58,7 +58,7 @@ fuel_zone2 = openmc.Material(name='UO2_15pct')
 fuel_zone2.set_density('g/cm3', 10.4)
 fuel_zone2.add_nuclide('U235', 0.15, 'ao') 
 fuel_zone2.add_nuclide('U238', 0.85, 'ao')
-fuel_zone2.add_nuclide('O16',  2.0,  'ao')
+fuel_zone2.add_nuclide('O16',  2.0,  'ao') #UO2 stoich 
 
 # CHANGE: Zone 3 - outer region, 19.75% HALEU enrichment
 fuel_zone3 = openmc.Material(name='UO2_1975pct')
@@ -69,7 +69,7 @@ fuel_zone3.add_nuclide('O16',  2.0,   'ao')
 
 # 3 ZONES: The three fuel zones use increasing enrichment outward to compensate for neutron leakage at the core edge.
 
-# CHANGE: updated materials list (removed U-10Mo, added graphite + 3 fuel zones)
+# create collection object of the materials
 materials = openmc.Materials([
     haynes, b4c, beo, sodium,
     graphite, fuel_zone1, fuel_zone2, fuel_zone3
@@ -97,8 +97,8 @@ cell_flat      = 5.5     # unit cell flat-to-flat 55mm
 axial_ref_top    = 1.25  # top BeO reflector
 axial_ref_bottom = 1.25  # bottom BeO reflector
 
-# Total height including reflectors
-total_height = core_height + axial_ref_top + axial_ref_bottom
+# Total height including reflectors: 160+1.25+1.25 = 162.5
+total_height = core_height + axial_ref_top + axial_ref_bottom 
 
 # Radial reflector per your specs (~45cm active core radius)
 core_radius      = 45.0  # defines where the graphite core ends and the BeO radial reflector begins
@@ -134,7 +134,7 @@ outer_boundary  = openmc.ZCylinder(r=reflector_radius, boundary_type='vacuum')
 # this reduces computation time by 12×
 import math
 angle1 = 0.0                  # 0 degrees
-angle2 = math.radians(30.0)   # 30 degrees = 1/12 of 360
+angle2 = math.radians(30.0)   # 30 degrees = 1/12 of 360; converts degrees to radians
 sym_plane_1 = openmc.Plane(
     a=math.sin(angle1), b=-math.cos(angle1), c=0, d=0,
     boundary_type='reflective'
@@ -193,7 +193,7 @@ fp3_fuel = openmc.Cell(fill=fuel_zone3, region=-fuel_pin_surf)
 fp3_mod  = openmc.Cell(fill=graphite,   region=+fuel_pin_surf)
 fp3_universe = openmc.Universe(cells=[fp3_fuel, fp3_mod])
 
-# Control rod universe 
+# Control rod universe = B4C adsorber + graphite mix
 cr_surf = openmc.ZCylinder(r=ctrl_rod_r)
 cr_cell = openmc.Cell(fill=b4c,      region=-cr_surf)
 cr_mod  = openmc.Cell(fill=graphite, region=+cr_surf)
