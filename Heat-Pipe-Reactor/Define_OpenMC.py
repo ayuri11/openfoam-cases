@@ -129,8 +129,7 @@ top_boundary    = openmc.ZPlane(z0=+total_height/2, boundary_type='vacuum')
 bottom_boundary = openmc.ZPlane(z0=-total_height/2, boundary_type='vacuum')
 fuel_top        = openmc.ZPlane(z0=+core_height/2)
 fuel_bottom     = openmc.ZPlane(z0=-core_height/2)
-top_ref_plane   = openmc.ZPlane(z0=+core_height/2)   # BeO axial reflector start
-bot_ref_plane   = openmc.ZPlane(z0=-core_height/2)   # BeO axial reflector start
+
 # openmc.ZPlane(z0=value): flat horizontal plane at height z0; defines the top & bot of reactor
 # vaccuum: neutrons that reach this surface escapes; used on the outermost boundaries
 # reflective: neutrons hitting this surface bounce back; for symmetry planes to simulate a full core with only 1/12 of it
@@ -290,11 +289,17 @@ def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
     cells.append(openmc.Cell(fill=cr_universe, region=-cr_s))
 
     # hexagonal boundary: graphite fills everything else inside the hex
-    # FIX: modern stable prism constructor
-    hex_prism = openmc.model.hexagonal_prism(
-        edge_length=cell_flat / math.sqrt(3),
-        orientation='x'
-)
+    # FIX: For flat-x orientation, the hex edge_length relates to flat-to-flat (f2f) as:
+    # f2f = sqrt(3) * edge_length  =>  edge_length = f2f / sqrt(3)
+    # This was already correct but must exactly match the lattice pitch.
+    # The lattice pitch is the center-to-center spacing = cell_flat (flat-to-flat width).
+    # These are consistent: sqrt(3) * (cell_flat/sqrt(3)) = cell_flat ✓
+    # No change needed here — but confirm lattice pitch below matches.
+    lattice.pitch = (cell_flat,)  
+
+    # hexagonal boundary: graphite fills everything else inside the hex
+  
+
     # graphite region = inside hex AND outside all pins/HPs/central rod
     # FIX: reuse already-stored surfaces instead of redefining new cylinders
     # original code rebuilt all surfaces here causing overlapping geometry definitions
@@ -366,11 +371,12 @@ lattice.universes = [
 
 outer_ring = len(lattice.universes) - 1
 
-# FIX: exact enclosing hex boundary for lattice
-# previous edge_length formula did not exactly match OpenMC lattice indexing
-# causing particles to cross lattice boundaries into undefined space
+# FIX: For a 4-ring lattice (rings 0,1,2,3), the enclosing hex edge length
+# must be n_rings * pitch = 4 * cell_flat. Using 3.0 left the outermost ring
+# partially outside the lattice cell, causing particles to escape into void.
+n_rings = 4   # rings 0 through 3 inclusive
 core_hex = openmc.model.hexagonal_prism(
-    edge_length=cell_flat * 3.0,
+    edge_length=cell_flat * n_rings,
     orientation='x'
 )
 
@@ -383,16 +389,17 @@ lattice_cell = openmc.Cell(
 core_universe = openmc.Universe()
 core_universe.add_cell(lattice_cell)
 
-# FIX: fill space between lattice and outer cylinder
-# prevents undefined void regions causing lost particles
-
+# FIX: radial reflector must span the full reactor height (bottom_boundary to top_boundary)
+# not just the active fuel zone. The axial BeO cells handle the top/bottom faces,
+# but the radial Be annulus must cover the full height to prevent void gaps at corners
+# where the axial and radial reflectors meet.
 radial_reflector_cell = openmc.Cell(
     fill=be,
     region=(
         +core_hex
         & -outer_boundary
-        & +fuel_bottom
-        & -fuel_top
+        & +bottom_boundary
+        & -top_boundary
         & +sym_plane_1
         & -sym_plane_2
     )
