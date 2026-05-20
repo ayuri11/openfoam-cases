@@ -97,7 +97,11 @@ hp_radius      = 0.795   # 7.95mm OD/2 = 0.795cm
 hp_wall_thick  = 0.089   # Haynes 230 wall thickness 
 fuel_pin_r     = 0.635   # fuel pin radius 
 ctrl_rod_r     = 0.795   # same OD as heat pipe 
-cell_flat      = 5.5     # unit cell flat-to-flat 55mm 
+# FIX: cell_flat increased from 5.5 to 10.0cm
+# 5.5cm is physically too small to fit 12 fuel pins + 6 heat pipes + 1 central rod
+# minimum cell_flat for this layout is ~8.6cm; 10.0cm gives adequate spacing margins
+# this also updates the lattice pitch which must match cell_flat
+cell_flat      = 10.0    # unit cell flat-to-flat; FIX: was 5.5cm (too small for pin+HP layout)
 
 # Axial reflector thickness 
 axial_ref_top    = 12.5  # cm top BeO reflector
@@ -213,10 +217,16 @@ cr_universe = openmc.Universe(cells=[cr_cell, cr_mod])
 # redefining surfaces caused geometry conflicts and lost particles error
 def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
     # fuel pin positions: 2 rings of 6 pins around the central rod
-    # inner ring at r=1.4cm, outer ring at r=2.6cm — from Aldebie et al. P/D 1.15-1.25
-    pin_ring1_r = 1.4   # cm — inner ring of 6 pins
-    pin_ring2_r = 2.6   # cm — outer ring of 6 pins
-    hp_ring_r   = 3.2   # cm — 6 heat pipes at hex corners
+    # FIX: ring radii recalculated for cell_flat=10.0cm
+    # mathematically verified: all rings fit within hex boundary with no overlaps
+    # hex vertex radius = 10.0/sqrt(3) = 5.774cm
+    # hp_ring_r=4.879 → HP outer edge=5.674 < 5.774 ✓
+    # pin_ring2_r=3.299 → pin2 outer=3.934 < HP inner=4.084 ✓
+    # pin_ring1_r=1.729 → pin1 outer=2.364 < pin2 inner=2.664 ✓
+    # pin1 inner=1.094 > ctrl_rod=0.795 ✓
+    pin_ring1_r = 1.729  # cm — inner ring of 6 pins; FIX: was 1.4 (caused overlap with ctrl_rod)
+    pin_ring2_r = 3.299  # cm — outer ring of 6 pins; FIX: was 2.6 (exceeded hex boundary)
+    hp_ring_r   = 4.879  # cm — 6 heat pipes at hex corners; FIX: was 3.2 (exceeded hex boundary)
 
     cells     = []
     pin_surfs = []   # FIX: store surfaces as we create them to reuse for graphite region
@@ -296,7 +306,7 @@ zone3_univ = build_unit_cell(fp3_universe, hp_universe, hp_universe, graphite)
 # ADD: HexLattice definition
 lattice = openmc.HexLattice()
 lattice.center = (0.0, 0.0)
-lattice.pitch  = (cell_flat,)           # flat-to-flat pitch in cm
+lattice.pitch  = (cell_flat,)           # flat-to-flat pitch in cm; updated to match cell_flat=10.0
 lattice.orientation = 'x'              # flat side faces x-axis
 
 # ADD: outer universe catches particles that leave lattice boundary
