@@ -28,11 +28,16 @@ b4c.add_nuclide('B11', 0.16, 'ao')  # 0.16/4 of boron atoms are B11 (4%)
 b4c.add_element('C',   1.0,  'ao')  # 1 carbon atom
 #add_nucleotide: adds a specific isotope; ao: atomic fraction
 
-# KEEP - same BeO reflector as reference
+# BeO material for axial reflector
 beo = openmc.Material(name='BeO')
 beo.set_density('g/cm3', 3.025)
 beo.add_element('Be', 1.0, 'ao') #BeO stoich 1:1
 beo.add_element('O',  1.0, 'ao')
+
+# Be material for radial
+be = openmc.Material(name='Be')
+be.set_density('g/cm3', 1.85)
+be.add_element('Be', 1.0, 'ao')
 
 # KEEP - same sodium coolant as reference
 sodium = openmc.Material(name='Na')
@@ -71,14 +76,14 @@ fuel_zone3.add_nuclide('O16',  2.0,   'ao')
 
 # create collection object of the materials
 materials = openmc.Materials([
-    haynes, b4c, beo, sodium,
+    haynes, b4c, beo, be, sodium,
     graphite, fuel_zone1, fuel_zone2, fuel_zone3
 ])
 materials.export_to_xml() # OpenMC can't read python directly; can read xml files
 
 
 # =============================================================================
-# DEFINING GEOMETRY - PARAMETERS (line 81 - 105)
+# DEFINING GEOMETRY - PARAMETERS (line 86 - 110)
 # =============================================================================
 # REFERENCE: annular cylindrical geometry, 1/8 symmetry
 # AYURI HPR: hexagonal lattice of unit cells, 1/12 symmetry
@@ -94,10 +99,10 @@ ctrl_rod_r     = 0.795   # same OD as heat pipe
 cell_flat      = 5.5     # unit cell flat-to-flat 55mm 
 
 # Axial reflector thickness 
-axial_ref_top    = 1.25  # top BeO reflector
-axial_ref_bottom = 1.25  # bottom BeO reflector
+axial_ref_top    = 12.5  # cm top BeO reflector
+axial_ref_bottom = 12.5  # cm bottom BeO reflector
 
-# Total height including reflectors: 160+1.25+1.25 = 162.5
+# Total height including reflectors: 
 total_height = core_height + axial_ref_top + axial_ref_bottom 
 
 # Radial reflector per your specs (~45cm active core radius)
@@ -201,7 +206,7 @@ cr_universe = openmc.Universe(cells=[cr_cell, cr_mod])
 
 
 # =============================================================================
-# GEOMETRY - HEX LATTICE (line 204-257)
+# GEOMETRY - HEX LATTICE (line 209-262)
 # places 37 unit cell universes in a regular hexagonal grid
 # this is the 37-cell core arrangement with 3 enrichment zones
 # =============================================================================
@@ -236,7 +241,7 @@ lattice.pitch  = (cell_flat,)           # flat-to-flat pitch in cm
 lattice.orientation = 'x'              # flat side faces x-axis
 
 # ADD: outer universe catches particles that leave lattice boundary
-outer_fill_cell = openmc.Cell(fill=beo)
+outer_fill_cell = openmc.Cell(fill=be) # radial reflector
 outer_univ      = openmc.Universe(cells=[outer_fill_cell])
 lattice.outer   = outer_univ
 # outer universe: any neutron that drifts outside the lattice boundary enters this universe (filled with BeO reflector)
@@ -258,7 +263,7 @@ core_universe = openmc.Universe(cells=[lattice_cell])
 
 
 # =============================================================================
-# GEOMETRY - ROOT CELL AND GEOMETRY EXPORT (line 261-283)
+# GEOMETRY - ROOT CELL AND GEOMETRY EXPORT (line 265-288)
 # root universe: the top-level container that holds everything else; defines the physical boundaries 
 # =============================================================================
 # KEEP: root cell with boundary conditions
