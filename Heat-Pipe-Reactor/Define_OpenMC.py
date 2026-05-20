@@ -187,25 +187,39 @@ fuel_pin_surf = openmc.ZCylinder(r=fuel_pin_r)
 
 # Zone 1 pin (central region)
 fp1_fuel = openmc.Cell(fill=fuel_zone1, region=-fuel_pin_surf)
-fp1_mod  = openmc.Cell(fill=graphite,   region=+fuel_pin_surf)
+
+# FIX: removed infinite graphite overlap region
+fp1_mod  = openmc.Cell(fill=graphite)
+
 fp1_universe = openmc.Universe(cells=[fp1_fuel, fp1_mod])
-# +fuel_pin_surf = outside the fuel cylinder = the graphite moderator that surrounds each fuel pin
-# the graphite fills everything outside the fuel pins and heat pipe in our unit cell
 
 # Zone 2 pin (middle region)
 fp2_fuel = openmc.Cell(fill=fuel_zone2, region=-fuel_pin_surf)
-fp2_mod  = openmc.Cell(fill=graphite,   region=+fuel_pin_surf)
+
+# FIX: removed infinite graphite overlap region
+fp2_mod  = openmc.Cell(fill=graphite)
+
 fp2_universe = openmc.Universe(cells=[fp2_fuel, fp2_mod])
 
 # Zone 3 pin (outer region)
 fp3_fuel = openmc.Cell(fill=fuel_zone3, region=-fuel_pin_surf)
-fp3_mod  = openmc.Cell(fill=graphite,   region=+fuel_pin_surf)
+
+# FIX: removed infinite graphite overlap region
+fp3_mod  = openmc.Cell(fill=graphite)
+
 fp3_universe = openmc.Universe(cells=[fp3_fuel, fp3_mod])
 
 # Control rod universe = B4C adsorber + graphite mix
 cr_surf = openmc.ZCylinder(r=ctrl_rod_r)
-cr_cell = openmc.Cell(fill=b4c,      region=-cr_surf)
-cr_mod  = openmc.Cell(fill=graphite, region=+cr_surf)
+
+cr_cell = openmc.Cell(
+    fill=b4c,
+    region=-cr_surf
+)
+
+# FIX: removed infinite graphite overlap region
+cr_mod  = openmc.Cell(fill=graphite)
+
 cr_universe = openmc.Universe(cells=[cr_cell, cr_mod])
 
 # ADDED: full unit cell universe builder; places 12 fuel pins + 6 heat pipes + 1 central rod
@@ -264,10 +278,11 @@ def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
     cells.append(openmc.Cell(fill=cr_universe, region=-cr_s))
 
     # hexagonal boundary: graphite fills everything else inside the hex
-    hex_prism = openmc.model.HexagonalPrism(
+    # FIX: modern stable prism constructor
+    hex_prism = openmc.model.hexagonal_prism(
         edge_length=cell_flat / math.sqrt(3),
         orientation='x'
-    )
+)
     # graphite region = inside hex AND outside all pins/HPs/central rod
     # FIX: reuse already-stored surfaces instead of redefining new cylinders
     # original code rebuilt all surfaces here causing overlapping geometry definitions
@@ -326,9 +341,32 @@ lattice.universes = [
     [zone1_univ],        # center cell - 12%
 ]
 
+# FIX: explicit lattice boundary region
+# without this, particles can leave the lattice and still remain in root_cell
+# causing "could not be located after crossing boundary of lattice"
+
+core_hex = openmc.model.hexagonal_prism(
+    edge_length=4 * cell_flat / math.sqrt(3),
+    orientation='x'
+)
+
 # ADD: fill the lattice into a containing cell
-lattice_cell = openmc.Cell(fill=lattice)
+lattice_cell = openmc.Cell(
+    fill=lattice,
+    region=-core_hex
+)
+
 core_universe = openmc.Universe(cells=[lattice_cell])
+
+# FIX: fill space between lattice and outer cylinder
+# prevents undefined void regions causing lost particles
+
+radial_reflector_cell = openmc.Cell(
+    fill=be,
+    region=+core_hex
+)
+
+core_universe.add_cell(radial_reflector_cell)
 
 
 # =============================================================================
@@ -396,10 +434,11 @@ settings.temperature['method']    = 'interpolation'
 settings.source = openmc.IndependentSource(
     space=openmc.stats.Box(
         [-core_radius, -core_radius, -core_height/2],
-        [ core_radius,  core_radius,  core_height/2]
+        [ core_radius,  core_radius,  core_height/2],
+        only_fissionable=True
+    )
 # Source distribution: starting neutrons are born uniformly throughout the core box 
         # to be changed: use a point source at the center or a mesh-based source from a previous run for faster convergence
-    )
 )
 settings.export_to_xml()
 
