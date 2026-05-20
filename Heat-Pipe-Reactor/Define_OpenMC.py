@@ -321,13 +321,12 @@ zone3_univ = build_unit_cell(fp3_universe, hp_universe, hp_universe, graphite)
 # ADD: HexLattice definition
 lattice = openmc.HexLattice()
 lattice.center = (0.0, 0.0)
-lattice.pitch  = (cell_flat,)           # flat-to-flat pitch in cm; updated to match cell_flat=10.0
+# FIX: hex lattice pitch uses center-to-center spacing
+lattice.pitch = (cell_flat * math.sqrt(3) / 2,)          # flat-to-flat pitch in cm; updated to match cell_flat=10.0
 lattice.orientation = 'x'              # flat side faces x-axis
 
 # ADD: outer universe catches particles that leave lattice boundary
-outer_fill_cell = openmc.Cell(fill=be) # radial reflector: Be metal (not BeO — see RRL)
-outer_univ      = openmc.Universe(cells=[outer_fill_cell])
-lattice.outer   = outer_univ
+
 # outer universe: any neutron that drifts outside the lattice boundary enters this universe (filled with Be radial reflector)
 # without this, OpenMC throws an error when a neutron leaves the lattice
 
@@ -345,11 +344,13 @@ lattice.universes = [
 # without this, particles can leave the lattice and still remain in root_cell
 # causing "could not be located after crossing boundary of lattice"
 
+# FIX: proper outer boundary for 3-ring hex lattice
+# OpenMC hex lattice outer radius must match lattice pitch geometry
+
 core_hex = openmc.model.hexagonal_prism(
-    edge_length=4 * cell_flat / math.sqrt(3),
+    edge_length=3.5 * cell_flat,
     orientation='x'
 )
-
 # ADD: fill the lattice into a containing cell
 lattice_cell = openmc.Cell(
     fill=lattice,
