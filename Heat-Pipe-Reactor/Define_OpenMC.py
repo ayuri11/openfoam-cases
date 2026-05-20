@@ -464,10 +464,13 @@ settings.temperature['method']    = 'interpolation'
 settings.verbosity = 10
 
 # CHANGE: source point at center of hex core (was at fuel_r offset in reference)
+
+# Source box tightly enclosing the lattice fissile region
+# lattice_enclosure_r = 36.274 cm covers all 37 cells
 settings.source = openmc.IndependentSource(
     space=openmc.stats.Box(
-        [-core_radius, -core_radius, -core_height/2],
-        [ core_radius,  core_radius,  core_height/2],
+        [-lattice_enclosure_r, -lattice_enclosure_r, -core_height/2],
+        [ lattice_enclosure_r,  lattice_enclosure_r,  core_height/2],
         only_fissionable=True
     )
  # only_fissionable=True: starting neutrons are born only in cells containing fissile material
