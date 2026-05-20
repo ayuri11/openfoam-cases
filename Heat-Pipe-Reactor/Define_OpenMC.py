@@ -334,7 +334,7 @@ zone3_univ = build_unit_cell(fp3_universe, hp_universe, hp_universe, graphite)
 lattice = openmc.HexLattice()
 lattice.center = (0.0, 0.0)
 # FIX: hex lattice pitch uses center-to-center spacing
-lattice.pitch = (cell_flat * math.sqrt(3) / 2,)          # flat-to-flat pitch in cm; updated to match cell_flat=10.0
+lattice.pitch = (cell_flat,)    # flat-to-flat pitch in cm; updated to match cell_flat=10.0
 lattice.orientation = 'x'              # flat side faces x-axis
 
 # ADD: outer universe catches particles that leave lattice boundary
@@ -366,10 +366,14 @@ lattice.universes = [
 
 outer_ring = len(lattice.universes) - 1
 
+# FIX: exact enclosing hex boundary for lattice
+# previous edge_length formula did not exactly match OpenMC lattice indexing
+# causing particles to cross lattice boundaries into undefined space
 core_hex = openmc.model.hexagonal_prism(
-    edge_length=lattice.pitch[0] * (outer_ring + 0.5),
+    edge_length=cell_flat * 3.0,
     orientation='x'
 )
+
 # ADD: fill the lattice into a containing cell
 lattice_cell = openmc.Cell(
     fill=lattice,
