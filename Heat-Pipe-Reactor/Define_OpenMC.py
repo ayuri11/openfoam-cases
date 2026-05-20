@@ -188,24 +188,33 @@ fuel_pin_surf = openmc.ZCylinder(r=fuel_pin_r)
 # Zone 1 pin (central region)
 fp1_fuel = openmc.Cell(fill=fuel_zone1, region=-fuel_pin_surf)
 
-# FIX: removed infinite graphite overlap region
-fp1_mod  = openmc.Cell(fill=graphite)
+# FIX: moderator region explicitly outside fuel pin
+fp1_mod  = openmc.Cell(
+    fill=graphite,
+    region=+fuel_pin_surf
+)
 
 fp1_universe = openmc.Universe(cells=[fp1_fuel, fp1_mod])
 
 # Zone 2 pin (middle region)
 fp2_fuel = openmc.Cell(fill=fuel_zone2, region=-fuel_pin_surf)
 
-# FIX: removed infinite graphite overlap region
-fp2_mod  = openmc.Cell(fill=graphite)
+# FIX: moderator region explicitly outside fuel pin
+fp2_mod  = openmc.Cell(
+    fill=graphite,
+    region=+fuel_pin_surf
+)
 
 fp2_universe = openmc.Universe(cells=[fp2_fuel, fp2_mod])
 
 # Zone 3 pin (outer region)
 fp3_fuel = openmc.Cell(fill=fuel_zone3, region=-fuel_pin_surf)
 
-# FIX: removed infinite graphite overlap region
-fp3_mod  = openmc.Cell(fill=graphite)
+# FIX: moderator region explicitly outside fuel pin
+fp3_mod  = openmc.Cell(
+    fill=graphite,
+    region=+fuel_pin_surf
+)
 
 fp3_universe = openmc.Universe(cells=[fp3_fuel, fp3_mod])
 
@@ -217,8 +226,11 @@ cr_cell = openmc.Cell(
     region=-cr_surf
 )
 
-# FIX: removed infinite graphite overlap region
-cr_mod  = openmc.Cell(fill=graphite)
+# FIX: moderator region explicitly outside control rod
+cr_mod  = openmc.Cell(
+    fill=graphite,
+    region=+cr_surf
+)
 
 cr_universe = openmc.Universe(cells=[cr_cell, cr_mod])
 
@@ -326,6 +338,11 @@ lattice.pitch = (cell_flat * math.sqrt(3) / 2,)          # flat-to-flat pitch in
 lattice.orientation = 'x'              # flat side faces x-axis
 
 # ADD: outer universe catches particles that leave lattice boundary
+outer_universe = openmc.Universe()
+outer_cell = openmc.Cell(fill=be)
+outer_universe.add_cell(outer_cell)
+
+lattice.outer = outer_universe
 
 # outer universe: any neutron that drifts outside the lattice boundary enters this universe (filled with Be radial reflector)
 # without this, OpenMC throws an error when a neutron leaves the lattice
@@ -347,8 +364,10 @@ lattice.universes = [
 # FIX: proper outer boundary for 3-ring hex lattice
 # OpenMC hex lattice outer radius must match lattice pitch geometry
 
+outer_ring = len(lattice.universes) - 1
+
 core_hex = openmc.model.hexagonal_prism(
-    edge_length=3.5 * cell_flat,
+    edge_length=lattice.pitch[0] * (outer_ring + 0.5),
     orientation='x'
 )
 # ADD: fill the lattice into a containing cell
@@ -357,7 +376,8 @@ lattice_cell = openmc.Cell(
     region=-core_hex
 )
 
-core_universe = openmc.Universe(cells=[lattice_cell])
+core_universe = openmc.Universe()
+core_universe.add_cell(lattice_cell)
 
 # FIX: fill space between lattice and outer cylinder
 # prevents undefined void regions causing lost particles
