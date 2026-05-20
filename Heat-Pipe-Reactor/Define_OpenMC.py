@@ -463,21 +463,18 @@ settings.temperature['method']    = 'interpolation'
 # remove after geometry is confirmed clean
 settings.verbosity = 10
 
-# CHANGE: source point at center of hex core (was at fuel_r offset in reference)
-
-# Source box tightly enclosing the lattice fissile region
-# lattice_enclosure_r = 36.274 cm covers all 37 cells
+# CHANGE: source distributed uniformly across fissionable core volume
+# (was at fuel_r offset in reference code)
 settings.source = openmc.IndependentSource(
     space=openmc.stats.Box(
-        [-lattice_enclosure_r, -lattice_enclosure_r, -core_height/2],
-        [ lattice_enclosure_r,  lattice_enclosure_r,  core_height/2],
+        [-core_radius, -core_radius, -core_height / 2],
+        [ core_radius,  core_radius,  core_height / 2],
         only_fissionable=True
     )
- # only_fissionable=True: starting neutrons are born only in cells containing fissile material
+    # only_fissionable=True: starting neutrons are born only in cells containing fissile material
     # TODO: replace with mesh-based source from previous run for faster convergence in production
 )
 settings.export_to_xml()
-
 
 # =============================================================================
 # TALLIES (line 398-422)
