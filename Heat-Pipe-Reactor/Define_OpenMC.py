@@ -1,5 +1,6 @@
 import numpy as np #imports NumPy as np (NumPy is the standard Python math library for arrays)
 import openmc #imports OpenMC Monte Carlo neutronics library
+import math
 
 # =============================================================================
 # DEFINING MATERIALS SELECTED (line 5 -77)
@@ -137,7 +138,6 @@ outer_boundary  = openmc.ZCylinder(r=reflector_radius, boundary_type='vacuum')
 # 1/12 symmetry: a regular hexagon has 12-fold symmetry (6 rotational × 2 mirror)
 # by modeling only a 30 deg wedge with reflective boundaries on both sides, openmc simulates the full core
 # this reduces computation time by 12×
-import math
 angle1 = 0.0                  # 0 degrees
 angle2 = math.radians(30.0)   # 30 degrees = 1/12 of 360; converts degrees to radians
 sym_plane_1 = openmc.Plane(
@@ -209,7 +209,8 @@ cr_universe = openmc.Universe(cells=[cr_cell, cr_mod])
 # pin positions: 12 pins arranged in two rings of 6 inside the hex cell
 # inner ring radius ~1.5cm, outer ring radius ~2.8cm (to be confirmed from refs)
 # hp positions: 6 heat pipes at corners of the hex, radius ~2.5cm from center
-# EDITED: replaced placeholder zone universes with real unit cell geometry
+# FIX: reuses stored surfaces for graphite exclusion region instead of redefining them
+# redefining surfaces caused geometry conflicts and lost particles error
 def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
     # fuel pin positions: 2 rings of 6 pins around the central rod
     # inner ring at r=1.4cm, outer ring at r=2.6cm — from Aldebie et al. P/D 1.15-1.25
@@ -217,7 +218,9 @@ def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
     pin_ring2_r = 2.6   # cm — outer ring of 6 pins
     hp_ring_r   = 3.2   # cm — 6 heat pipes at hex corners
 
-    cells = []
+    cells     = []
+    pin_surfs = []   # FIX: store surfaces as we create them to reuse for graphite region
+    hp_surfs  = []   # FIX: avoids duplicate surface definitions that caused lost particles
 
     # 6 fuel pins: inner ring
     for i in range(6):
@@ -225,6 +228,7 @@ def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
         x = pin_ring1_r * math.cos(ang)
         y = pin_ring1_r * math.sin(ang)
         pin_s = openmc.ZCylinder(x0=x, y0=y, r=fuel_pin_r)
+        pin_surfs.append(pin_s)          # store for reuse
         cells.append(openmc.Cell(fill=fp_universe, region=-pin_s))
 
     # 6 fuel pins: outer ring (offset 30 deg from inner)
@@ -233,6 +237,7 @@ def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
         x = pin_ring2_r * math.cos(ang)
         y = pin_ring2_r * math.sin(ang)
         pin_s = openmc.ZCylinder(x0=x, y0=y, r=fuel_pin_r)
+        pin_surfs.append(pin_s)          # store for reuse
         cells.append(openmc.Cell(fill=fp_universe, region=-pin_s))
 
     # 6 heat pipes: at hex corners
@@ -241,9 +246,10 @@ def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
         x = hp_ring_r * math.cos(ang)
         y = hp_ring_r * math.sin(ang)
         hp_s = openmc.ZCylinder(x0=x, y0=y, r=hp_radius)
+        hp_surfs.append(hp_s)            # store for reuse
         cells.append(openmc.Cell(fill=hp_universe, region=-hp_s))
 
-    # 1 central rod (control rod for zone1, extra HP for zone3)
+    # 1 central rod (control rod for zone1/2, extra HP for zone3)
     cr_s = openmc.ZCylinder(x0=0, y0=0, r=ctrl_rod_r)
     cells.append(openmc.Cell(fill=cr_universe, region=-cr_s))
 
@@ -252,24 +258,13 @@ def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
         edge_length=cell_flat / math.sqrt(3),
         orientation='x'
     )
-    # graphite cell: inside hex AND outside all pins/HPs/central rod
-    # build the exclusion region from all cylinders already added
-    all_pin_surfs  = [openmc.ZCylinder(x0=pin_ring1_r*math.cos(math.radians(i*60)),
-                                        y0=pin_ring1_r*math.sin(math.radians(i*60)),
-                                        r=fuel_pin_r) for i in range(6)]
-    all_pin_surfs += [openmc.ZCylinder(x0=pin_ring2_r*math.cos(math.radians(i*60+30)),
-                                        y0=pin_ring2_r*math.sin(math.radians(i*60+30)),
-                                        r=fuel_pin_r) for i in range(6)]
-    all_hp_surfs   = [openmc.ZCylinder(x0=hp_ring_r*math.cos(math.radians(i*60)),
-                                        y0=hp_ring_r*math.sin(math.radians(i*60)),
-                                        r=hp_radius) for i in range(6)]
-    cr_s2 = openmc.ZCylinder(x0=0, y0=0, r=ctrl_rod_r)
-
-    # graphite region = inside hex, outside every pin and HP
+    # graphite region = inside hex AND outside all pins/HPs/central rod
+    # FIX: reuse already-stored surfaces instead of redefining new cylinders
+    # original code rebuilt all surfaces here causing overlapping geometry definitions
     graphite_region = -hex_prism
-    for s in all_pin_surfs + all_hp_surfs:
+    for s in pin_surfs + hp_surfs:   # reuse stored surfaces
         graphite_region = graphite_region & +s
-    graphite_region = graphite_region & +cr_s2
+    graphite_region = graphite_region & +cr_s  # reuse cr_s already defined above
 
     cells.append(openmc.Cell(fill=graphite, region=graphite_region))
 
@@ -305,10 +300,10 @@ lattice.pitch  = (cell_flat,)           # flat-to-flat pitch in cm
 lattice.orientation = 'x'              # flat side faces x-axis
 
 # ADD: outer universe catches particles that leave lattice boundary
-outer_fill_cell = openmc.Cell(fill=be) # radial reflector
+outer_fill_cell = openmc.Cell(fill=be) # radial reflector: Be metal (not BeO — see RRL)
 outer_univ      = openmc.Universe(cells=[outer_fill_cell])
 lattice.outer   = outer_univ
-# outer universe: any neutron that drifts outside the lattice boundary enters this universe (filled with BeO reflector)
+# outer universe: any neutron that drifts outside the lattice boundary enters this universe (filled with Be radial reflector)
 # without this, OpenMC throws an error when a neutron leaves the lattice
 
 # Ring arrangement:  OpenMC reads rings outermost first 
@@ -335,11 +330,14 @@ core_universe = openmc.Universe(cells=[lattice_cell])
 
 root_cell = openmc.Cell(name='root cell')
 root_cell.fill   = core_universe
+# FIX: root cell restricted to ACTIVE FUEL REGION only (fuel_bottom to fuel_top)
+# original used bottom_boundary/top_boundary which caused core_universe to overlap
+# with the BeO axial reflector cells added below — this created geometry conflicts
+# and was the primary cause of lost particles
 root_cell.region = (
     -outer_boundary      # inside the outer cylinder (r < 65cm)
-    & +bottom_boundary   # above bottom plane 
-    & -top_boundary      # below top plane 
-    
+    & +fuel_bottom       # FIX: was +bottom_boundary; now restricted to active fuel zone only
+    & -fuel_top          # FIX: was -top_boundary; BeO axial cells now sit cleanly above/below
     & +sym_plane_1       # on the correct side of plane 1; plane 1 at 0°, wedge is above
     & -sym_plane_2       # on the correct side of plane 2; at 30°, wedge is below
     # inside the 30° wedge defined by the two symmetry planes; activates the 1/12 symmetry
@@ -351,6 +349,7 @@ root_universe.add_cell(root_cell)
 # ADDED: explicit BeO axial reflector cells above and below the active core
 # fills the 12.5cm gap between fuel_top/fuel_bottom and the vacuum boundary with real BeO material
 # without these cells, that space is geometric void — neutrons stream through instead of reflecting
+# FIX: these now sit in a clean non-overlapping region because root_cell is restricted to fuel zone
 top_beo_cell = openmc.Cell(
     fill=beo,
     region=+fuel_top & -top_boundary & -outer_boundary & +sym_plane_1 & -sym_plane_2
@@ -374,10 +373,11 @@ geometry.export_to_xml()
 # CHANGE: source point moved to center of hex core
 
 settings = openmc.Settings()
-# EDITED: increased batches, inactive, and particles to production-run values 
-settings.batches   = 200    # total no. of batch to simulate; increased from 100 for production run
-settings.inactive  = 50     # increased from 20; more inactive batches = better fission source convergence
-settings.particles = 10000  # increased from 1000; more particles = smaller uncertainty on keff and power tallies
+# TEMPORARILY reduced for debugging — restore to production values after geometry confirmed working
+# production values: batches=200, inactive=50, particles=10000
+settings.batches   = 10     # reduced from 200 for debugging
+settings.inactive  = 5      # reduced from 50 for debugging
+settings.particles = 100    # reduced from 10000 for debugging
 settings.temperature['multipole'] = True # uses the multipole representation of nuclear cross-sections; 
 # allows accurate Doppler broadening at any temperature, not just pre-tabulated values
 settings.temperature['method']    = 'interpolation'
