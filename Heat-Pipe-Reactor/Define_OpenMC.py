@@ -96,7 +96,7 @@ hp_radius      = 0.795   # 7.95mm OD/2 = 0.795cm
 hp_wall_thick  = 0.089   # Haynes 230 wall thickness 
 fuel_pin_r     = 0.635   # fuel pin radius 
 ctrl_rod_r     = 0.795   # same OD as heat pipe 
-# FIX: cell_flat = 10.0cm (was 5.5cm which was too small to fit 12 fuel pins + 6 HPs + 1 central rod)
+# cell_flat = 10.0cm (was 5.5cm which was too small to fit 12 fuel pins + 6 HPs + 1 central rod)
 # minimum cell_flat for this layout is ~8.6cm; 10.0cm gives adequate spacing margins
 # mathematically verified ring radii (see build_unit_cell below):
 #   hex vertex radius = 10.0/sqrt(3) = 5.774cm
@@ -117,7 +117,7 @@ total_height = core_height + axial_ref_top + axial_ref_bottom
 core_radius      = 45.0  # defines where the graphite core ends and the BeO radial reflector begins
 reflector_radius = 65.0  # outer reflector boundary
 
-# FIX: lattice enclosure radius — circumscribes all 4 rings (indices 0-3) of the hex lattice
+# lattice enclosure radius — circumscribes all 4 rings (indices 0-3) of the hex lattice
 # outermost ring centers sit 3*cell_flat from origin; add cell circumradius + small margin
 # circumradius of hex cell = cell_flat / sqrt(3) = 5.774cm
 lattice_enclosure_r = 3.0 * cell_flat + cell_flat / math.sqrt(3) + 0.5  # = 36.274cm
@@ -161,7 +161,7 @@ sym_plane_2 = openmc.Plane(
 # for a plane at angle θ from x-axis: a = sin(θ), b = -cos(θ), c = 0, d = 0
 # the two planes are at 0° and 30° 
 
-# FIX: lattice boundary as ZCylinder (replaces hexagonal_prism for enclosure)
+# lattice boundary as ZCylinder (avoids hex orientation/edge_length ambiguity)
 # using a cylinder avoids hex orientation/edge_length ambiguity that caused
 # particles to escape the lattice into undefined space in earlier version
 lattice_boundary = openmc.ZCylinder(r=lattice_enclosure_r)
@@ -221,13 +221,13 @@ cr_universe = openmc.Universe(cells=[cr_cell, cr_mod])
 # Places 12 fuel pins + 6 heat pipes + 1 central rod inside a hexagonal graphite block.
 # Called once per zone to produce zone1_univ, zone2_univ, zone3_univ.
 #
-# FIX (this version): hex boundary built from 6 explicit half-space planes instead of
+# hex boundary built from 6 explicit half-space planes instead of
 # openmc.model.hexagonal_prism(). hexagonal_prism() returns a Region object, not a
 # Surface — the unary minus operator on it is unreliable across OpenMC versions and
 # was silently producing malformed graphite regions, which created geometry gaps and
 # lost particles whenever a neutron crossed the unit cell boundary.
 #
-# FIX: all cylinder surfaces (pin_surfs, hp_surfs, cr_s) are created once and stored,
+# all cylinder surfaces (pin_surfs, hp_surfs, cr_s) are created once and stored,
 # then reused for both the cell fill definitions and the graphite exclusion region.
 # The earlier pattern of redefining surfaces inside the graphite region block produced
 # duplicate surface IDs at the same positions — OpenMC treated them as distinct surfaces,
@@ -285,7 +285,7 @@ def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
     cells.append(openmc.Cell(fill=cr_universe, region=-cr_s))
  
     # --- graphite monolith: fills everything inside hex boundary, outside all rods/pins/HPs ---
-    # FIX: build hex boundary from 6 explicit half-space planes (not hexagonal_prism region object)
+    # build hex boundary from 6 explicit half-space planes (not hexagonal_prism region object)
     # For flat-x hex (flat face perpendicular to x-axis), the 6 bounding planes have normals at
     # 0°, 60°, 120°, 180°, 240°, 300°. Each plane sits at perpendicular distance = apothem
     # from the cell center, where apothem = flat-to-flat / 2 = cell_flat / 2.
@@ -309,7 +309,7 @@ def build_unit_cell(fp_universe, cr_universe, hp_universe, graphite):
         hex_interior = hex_interior & -plane
  
     # graphite fills hex interior minus all cylindrical objects
-    # FIX: reuse already-stored surface objects (pin_surfs, hp_surfs, cr_s)
+    # reuse already-stored surface objects (pin_surfs, hp_surfs, cr_s)
     # so OpenMC sees a single surface at each position, not duplicate overlapping ones
     graphite_region = hex_interior
     for s in pin_surfs + hp_surfs:
@@ -353,7 +353,7 @@ lattice.universes = [
     [zone1_univ],       # Ring 0 - center cell, 12%
 ]
 
-# FIX: outer universe catches any particle that crosses the lattice outer boundary
+# outer universe catches any particle that crosses the lattice outer boundary
 # Without this, OpenMC throws an error when a neutron drifts outside the 37-cell grid.
 # Filled with Be so particles that escape into the radial reflector region are tracked correctly.
 outer_universe = openmc.Universe()
@@ -363,12 +363,12 @@ lattice.outer = outer_universe
 # =============================================================================
 # GEOMETRY - LATTICE CELL AND CORE UNIVERSE
 # =============================================================================
-# FIX: lattice is enclosed by a ZCylinder (not hexagonal_prism) to avoid
+# lattice is enclosed by a ZCylinder (not hexagonal_prism) to avoid
 # hex orientation/edge_length ambiguity. The cylinder circumscribes all ring
 # centers plus one cell circumradius, with a small margin, so no ring center
 # falls outside the cylinder and creates an undefined region.
 #
-# FIX: lattice_cell is axially bounded by fuel_bottom and fuel_top so it does
+# lattice_cell is axially bounded by fuel_bottom and fuel_top so it does
 # NOT overlap with the BeO axial reflector cells added to root_universe below.
 # Earlier version bounded by bottom_boundary/top_boundary, which caused the
 # lattice cell and BeO cells to share the same axial space — geometry conflict.
@@ -383,7 +383,7 @@ core_universe.add_cell(lattice_cell)
  
 # Be radial reflector: fills the annular region between the lattice cylinder and
 # the outer vacuum boundary, over the full reactor height (including axial reflector zones)
-# FIX: spans bottom_boundary to top_boundary (not fuel_bottom to fuel_top) so the
+# spans bottom_boundary to top_boundary (not fuel_bottom to fuel_top) so the
 # radial reflector covers the corners where axial and radial reflectors meet —
 # earlier version left those corner volumes as void, causing lost particles there
 radial_reflector_cell = openmc.Cell(
@@ -406,7 +406,7 @@ core_universe.add_cell(radial_reflector_cell)
 # KEEP: root cell with boundary conditions
 # CHANGE: use 1/12 symmetry planes instead of 1/8
 
-# FIX: root_cell region restricted to ACTIVE FUEL ZONE (fuel_bottom to fuel_top)
+# root_cell region restricted to ACTIVE FUEL ZONE (fuel_bottom to fuel_top)
 # — not bottom_boundary/top_boundary. The BeO axial reflector cells added below
 # sit in the axial gaps above/below the active zone. If root_cell also claims that
 # space, the two regions overlap → geometry conflict → lost particles.
@@ -426,7 +426,7 @@ root_universe.add_cell(root_cell)
 # ADDED: explicit BeO axial reflector cells above and below the active core
 # fills the 12.5cm axial gaps between fuel_top/fuel_bottom and the vacuum boundaries
 # with real BeO material so neutrons reflect instead of streaming through void
-# FIX: non-overlapping with root_cell because root_cell is restricted to fuel zone only
+# non-overlapping with root_cell because root_cell is restricted to fuel zone only
 top_beo_cell = openmc.Cell(
     fill=beo,
     region=+fuel_top & -top_boundary & -outer_boundary & +sym_plane_1 & -sym_plane_2
@@ -463,16 +463,17 @@ settings.temperature['method']    = 'interpolation'
 # remove after geometry is confirmed clean
 settings.verbosity = 10
 
-# CHANGE: source distributed uniformly across fissionable core volume
-# (was at fuel_r offset in reference code)
+# FIX: replaced Box + only_fissionable=True with a small Point source at the core center
+# only_fissionable=True samples random points in the box and rejects non-fuel positions;
+# with real pin geometry fuel occupies <5% of box volume so >95% of samples are rejected
+# → OpenMC aborts with "95% of source sites rejected" error
+# Point source at (0,0,0) = center of inner ring fuel cell = guaranteed fissionable position
+# this seeds the fission source cleanly; after inactive batches it converges to true distribution
+# TODO: replace with mesh-based source from previous run for production runs
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.Box(
-        [-core_radius, -core_radius, -core_height / 2],
-        [ core_radius,  core_radius,  core_height / 2],
-        only_fissionable=True
-    )
-    # only_fissionable=True: starting neutrons are born only in cells containing fissile material
-    # TODO: replace with mesh-based source from previous run for faster convergence in production
+    space=openmc.stats.Point((1.729, 0.0, 0.0))
+    # Point at center of first inner fuel pin (inner ring, angle=0°) in the central unit cell
+    # (1.729, 0, 0) = pin_ring1_r * cos(0°) — guaranteed inside UO2 fuel; corrects to true distribution during inactive batches
 )
 settings.export_to_xml()
 
