@@ -2,7 +2,7 @@ import openmc
 import math
 
 # =============================================================================
-# STEP 1 (FLAT GEOMETRY) — single unit cell, no sub-universes
+# STEP 1 (BOUNDED FLAT GEOMETRY) — No leaks outside outer_cyl
 # =============================================================================
 
 # --- Materials ---
@@ -50,17 +50,22 @@ pin_ring2_r = 3.299
 hp_ring_r   = 4.879  
 
 # --- Global Boundaries ---
-unit_cell_r  = (cell_flat / 2.0) - 0.01   # 4.99 cm
+# CRITICAL FIX: Make the bounding cylinder large enough to contain the heat pipes for Step 1 testing!
+# Outermost edge of heat pipe is 4.879 + 0.795 = 5.674 cm. Let's make the boundary 5.80 cm.
+unit_cell_r  = 5.80 
 top_plane    = openmc.ZPlane(z0=+core_height/2, boundary_type='vacuum')
 bottom_plane = openmc.ZPlane(z0=-core_height/2, boundary_type='vacuum')
 outer_cyl    = openmc.ZCylinder(r=unit_cell_r, boundary_type='vacuum')
 
-axial_region = +bottom_plane & -top_plane
-graphite_region = -outer_cyl & axial_region
+# Every cell in the problem MUST be bounded by this common master region
+master_region = -outer_cyl & +bottom_plane & -top_plane
 
 # --- Build Root Universe Directly ---
 root_universe = openmc.Universe(universe_id=0)
 cells = []
+
+# Initialize graphite background as the full master region
+graphite_region = master_region
 
 # 6 fuel pins: inner ring
 for i in range(6):
@@ -69,8 +74,8 @@ for i in range(6):
     y = pin_ring1_r * math.sin(ang)
     s = openmc.ZCylinder(x0=x, y0=y, r=fuel_pin_r)
     
-    # Fill material directly in the cell, no universe wrap
-    cells.append(openmc.Cell(fill=fuel, region=-s & axial_region))
+    # Clip the pin cell to the master region
+    cells.append(openmc.Cell(fill=fuel, region=-s & master_region))
     graphite_region &= +s
 
 # 6 fuel pins: outer ring
@@ -80,10 +85,11 @@ for i in range(6):
     y = pin_ring2_r * math.sin(ang)
     s = openmc.ZCylinder(x0=x, y0=y, r=fuel_pin_r)
     
-    cells.append(openmc.Cell(fill=fuel, region=-s & axial_region))
+    # Clip the pin cell to the master region
+    cells.append(openmc.Cell(fill=fuel, region=-s & master_region))
     graphite_region &= +s
 
-# 6 heat pipes (concentric regions handled directly in root)
+# 6 heat pipes
 for i in range(6):
     ang = math.radians(i * 60)
     x = hp_ring_r * math.cos(ang)
@@ -92,13 +98,14 @@ for i in range(6):
     s_inner = openmc.ZCylinder(x0=x, y0=y, r=hp_radius - hp_wall_t)
     s_outer = openmc.ZCylinder(x0=x, y0=y, r=hp_radius)
     
-    cells.append(openmc.Cell(fill=sodium, region=-s_inner & axial_region))
-    cells.append(openmc.Cell(fill=haynes, region=+s_inner & -s_outer & axial_region))
+    # Clip heat pipe layers to the master region
+    cells.append(openmc.Cell(fill=sodium, region=-s_inner & master_region))
+    cells.append(openmc.Cell(fill=haynes, region=+s_inner & -s_outer & master_region))
     graphite_region &= +s_outer
 
 # 1 central control rod
 cr_s = openmc.ZCylinder(x0=0, y0=0, r=ctrl_rod_r)
-cells.append(openmc.Cell(fill=b4c, region=-cr_s & axial_region))
+cells.append(openmc.Cell(fill=b4c, region=-cr_s & master_region))
 graphite_region &= +cr_s
 
 # Background graphite cell
@@ -115,10 +122,9 @@ settings.inactive  = 5
 settings.particles = 500
 settings.run_mode  = 'fixed source'
 
-# Let's put the source at (0.0, 0.0, 0.0) safely inside the central B4C rod
 settings.source = openmc.IndependentSource(
     space=openmc.stats.Point((0.0, 0.0, 0.0))
 )
 settings.export_to_xml()
 
-print("STEP 1 (Flat Geometry) — Exported successfully.")
+print(f"STEP 1 (Fixed Boundaries) — Exported with master boundary radius: {unit_cell_r} cm")
