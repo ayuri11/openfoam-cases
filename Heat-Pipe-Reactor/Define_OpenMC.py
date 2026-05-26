@@ -2,8 +2,7 @@ import openmc
 import math
 
 # =============================================================================
-# STEP 1 (FIXED) — single unit cell, no lattice, no symmetry
-# Goal: Confirm unit cell geometry is clean before adding lattice complexity.
+# STEP 1 (FLAT GEOMETRY) — single unit cell, no sub-universes
 # =============================================================================
 
 # --- Materials ---
@@ -40,49 +39,28 @@ b4c.add_element('C',   1.0,  'ao')
 openmc.Materials([graphite, fuel, sodium, haynes, b4c]).export_to_xml()
 
 # --- Geometry Parameters ---
-cell_flat   = 10.0   # cm flat-to-flat
-fuel_pin_r  = 0.635  # cm fuel pin radius
-hp_radius   = 0.795  # cm heat pipe outer radius
-hp_wall_t   = 0.089  # cm Haynes wall thickness
-ctrl_rod_r  = 0.795  # cm control rod radius
-core_height = 160.0  # cm — axial extent of unit cell
-pin_ring1_r = 1.729  # cm inner ring 6 pins
-pin_ring2_r = 3.299  # cm outer ring 6 pins (30° offset)
-hp_ring_r   = 4.879  # cm 6 HPs at hex corners
+cell_flat   = 10.0   
+fuel_pin_r  = 0.635  
+hp_radius   = 0.795  
+hp_wall_t   = 0.089  
+ctrl_rod_r  = 0.795  
+core_height = 160.0  
+pin_ring1_r = 1.729  
+pin_ring2_r = 3.299  
+hp_ring_r   = 4.879  
 
-# --- Pin and HP Universes (FIXED: Sub-universes contain ONLY their local contents) ---
-hp_inner_s = openmc.ZCylinder(r=hp_radius - hp_wall_t)
-hp_outer_s = openmc.ZCylinder(r=hp_radius)
-hp_universe = openmc.Universe(cells=[
-    openmc.Cell(fill=sodium,  region=-hp_inner_s),
-    openmc.Cell(fill=haynes,  region=+hp_inner_s & -hp_outer_s),
-])
-
-fp_surf = openmc.ZCylinder(r=fuel_pin_r)
-fp_universe = openmc.Universe(cells=[
-    openmc.Cell(fill=fuel,     region=-fp_surf)
-])
-
-cr_surf = openmc.ZCylinder(r=ctrl_rod_r)
-cr_universe = openmc.Universe(cells=[
-    openmc.Cell(fill=b4c,      region=-cr_surf)
-])
-
-# --- Outer Boundaries ---
-# Inscribed circle radius of hex = cell_flat/2 = 5.0 cm
-unit_cell_r  = (cell_flat / 2.0) - 0.01   # 4.99 cm — stays strictly inside the hex boundaries
+# --- Global Boundaries ---
+unit_cell_r  = (cell_flat / 2.0) - 0.01   # 4.99 cm
 top_plane    = openmc.ZPlane(z0=+core_height/2, boundary_type='vacuum')
 bottom_plane = openmc.ZPlane(z0=-core_height/2, boundary_type='vacuum')
 outer_cyl    = openmc.ZCylinder(r=unit_cell_r, boundary_type='vacuum')
 
 axial_region = +bottom_plane & -top_plane
+graphite_region = -outer_cyl & axial_region
 
-# --- Build Root Universe ---
+# --- Build Root Universe Directly ---
 root_universe = openmc.Universe(universe_id=0)
 cells = []
-
-# List to keep track of all internal pin/pipe cells
-internal_cells = []
 
 # 6 fuel pins: inner ring
 for i in range(6):
@@ -91,9 +69,9 @@ for i in range(6):
     y = pin_ring1_r * math.sin(ang)
     s = openmc.ZCylinder(x0=x, y0=y, r=fuel_pin_r)
     
-    pin_cell = openmc.Cell(fill=fp_universe, region=-s & axial_region)
-    cells.append(pin_cell)
-    internal_cells.append(pin_cell)
+    # Fill material directly in the cell, no universe wrap
+    cells.append(openmc.Cell(fill=fuel, region=-s & axial_region))
+    graphite_region &= +s
 
 # 6 fuel pins: outer ring
 for i in range(6):
@@ -102,34 +80,28 @@ for i in range(6):
     y = pin_ring2_r * math.sin(ang)
     s = openmc.ZCylinder(x0=x, y0=y, r=fuel_pin_r)
     
-    pin_cell = openmc.Cell(fill=fp_universe, region=-s & axial_region)
-    cells.append(pin_cell)
-    internal_cells.append(pin_cell)
+    cells.append(openmc.Cell(fill=fuel, region=-s & axial_region))
+    graphite_region &= +s
 
-# 6 heat pipes
+# 6 heat pipes (concentric regions handled directly in root)
 for i in range(6):
     ang = math.radians(i * 60)
     x = hp_ring_r * math.cos(ang)
     y = hp_ring_r * math.sin(ang)
-    s = openmc.ZCylinder(x0=x, y0=y, r=hp_radius)
     
-    hp_cell = openmc.Cell(fill=hp_universe, region=-s & axial_region)
-    cells.append(hp_cell)
-    internal_cells.append(hp_cell)
+    s_inner = openmc.ZCylinder(x0=x, y0=y, r=hp_radius - hp_wall_t)
+    s_outer = openmc.ZCylinder(x0=x, y0=y, r=hp_radius)
+    
+    cells.append(openmc.Cell(fill=sodium, region=-s_inner & axial_region))
+    cells.append(openmc.Cell(fill=haynes, region=+s_inner & -s_outer & axial_region))
+    graphite_region &= +s_outer
 
 # 1 central control rod
 cr_s = openmc.ZCylinder(x0=0, y0=0, r=ctrl_rod_r)
-cr_cell = openmc.Cell(fill=cr_universe, region=-cr_s & axial_region)
-cells.append(cr_cell)
-internal_cells.append(cr_cell)
+cells.append(openmc.Cell(fill=b4c, region=-cr_s & axial_region))
+graphite_region &= +cr_s
 
-# FIXED GRAPHITE LOGIC: Use the complement operator (~) on the cells themselves.
-# This says: "The graphite is everything inside the outer cylinder, 
-# MINUS the exact volumes occupied by the pins/rods, regardless of surface overlap."
-graphite_region = -outer_cyl & axial_region
-for cell in internal_cells:
-    graphite_region &= ~cell.region
-
+# Background graphite cell
 graphite_cell = openmc.Cell(fill=graphite, region=graphite_region)
 cells.append(graphite_cell)
 
@@ -141,23 +113,12 @@ settings = openmc.Settings()
 settings.batches   = 20
 settings.inactive  = 5
 settings.particles = 500
-settings.run_mode  = 'fixed source'  # Fixed source guarantees execution even if k-eff < 1 in an open cylinder
+settings.run_mode  = 'fixed source'
 
-# FIX: Source placed cleanly at (0,0,0) inside the central control rod matrix
+# Let's put the source at (0.0, 0.0, 0.0) safely inside the central B4C rod
 settings.source = openmc.IndependentSource(
     space=openmc.stats.Point((0.0, 0.0, 0.0))
 )
 settings.export_to_xml()
 
-# --- Simple Flux Tally ---
-mesh = openmc.RegularMesh()
-mesh.dimension   = [10, 10, 5]
-mesh.lower_left  = [-unit_cell_r, -unit_cell_r, -core_height/2]
-mesh.upper_right = [ unit_cell_r,  unit_cell_r,  core_height/2]
-tally = openmc.Tally(name='flux')
-tally.filters = [openmc.MeshFilter(mesh)]
-tally.scores  = ['flux']
-openmc.Tallies([tally]).export_to_xml()
-
-print("STEP 1 (Fixed) — Single unit cell geometry and settings exported.")
-print("Run 'openmc' to verify the tracking is clean.")
+print("STEP 1 (Flat Geometry) — Exported successfully.")
