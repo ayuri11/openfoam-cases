@@ -81,49 +81,58 @@ axial_region = +bottom_plane & -top_plane
 root_universe = openmc.Universe(universe_id=0)
 cells = []
 
-# Define the global graphite background region bounded by the outer cylinder
-graphite_region = -outer_cyl & axial_region
+# List to keep track of all internal pin/pipe cells
+internal_cells = []
 
-# 6 fuel pins: inner ring at 0°, 60°, 120°, 180°, 240°, 300°
+# 6 fuel pins: inner ring
 for i in range(6):
     ang = math.radians(i * 60)
     x = pin_ring1_r * math.cos(ang)
     y = pin_ring1_r * math.sin(ang)
     s = openmc.ZCylinder(x0=x, y0=y, r=fuel_pin_r)
     
-    cells.append(openmc.Cell(fill=fp_universe, region=-s & axial_region))
-    graphite_region &= +s  # Cut this pin shape out of the background graphite
+    pin_cell = openmc.Cell(fill=fp_universe, region=-s & axial_region)
+    cells.append(pin_cell)
+    internal_cells.append(pin_cell)
 
-# 6 fuel pins: outer ring at 30°, 90°, 150°, 210°, 270°, 330°
+# 6 fuel pins: outer ring
 for i in range(6):
     ang = math.radians(i * 60 + 30)
     x = pin_ring2_r * math.cos(ang)
     y = pin_ring2_r * math.sin(ang)
     s = openmc.ZCylinder(x0=x, y0=y, r=fuel_pin_r)
     
-    cells.append(openmc.Cell(fill=fp_universe, region=-s & axial_region))
-    graphite_region &= +s  # Cut this pin shape out of the background graphite
+    pin_cell = openmc.Cell(fill=fp_universe, region=-s & axial_region)
+    cells.append(pin_cell)
+    internal_cells.append(pin_cell)
 
-# 6 heat pipes: at hex corners 0°, 60°, 120°, 180°, 240°, 300°
+# 6 heat pipes
 for i in range(6):
     ang = math.radians(i * 60)
     x = hp_ring_r * math.cos(ang)
     y = hp_ring_r * math.sin(ang)
     s = openmc.ZCylinder(x0=x, y0=y, r=hp_radius)
     
-    cells.append(openmc.Cell(fill=hp_universe, region=-s & axial_region))
-    graphite_region &= +s  # Cut this HP shape out of the background graphite
+    hp_cell = openmc.Cell(fill=hp_universe, region=-s & axial_region)
+    cells.append(hp_cell)
+    internal_cells.append(hp_cell)
 
-# 1 central control rod at origin
+# 1 central control rod
 cr_s = openmc.ZCylinder(x0=0, y0=0, r=ctrl_rod_r)
-cells.append(openmc.Cell(fill=cr_universe, region=-cr_s & axial_region))
-graphite_region &= +cr_s  # Cut the central rod out of the background graphite
+cr_cell = openmc.Cell(fill=cr_universe, region=-cr_s & axial_region)
+cells.append(cr_cell)
+internal_cells.append(cr_cell)
 
-# Create the final background graphite cell with all pins/rods subtracted
+# FIXED GRAPHITE LOGIC: Use the complement operator (~) on the cells themselves.
+# This says: "The graphite is everything inside the outer cylinder, 
+# MINUS the exact volumes occupied by the pins/rods, regardless of surface overlap."
+graphite_region = -outer_cyl & axial_region
+for cell in internal_cells:
+    graphite_region &= ~cell.region
+
 graphite_cell = openmc.Cell(fill=graphite, region=graphite_region)
 cells.append(graphite_cell)
 
-# Add all collected cells to our root universe
 root_universe.add_cells(cells)
 openmc.Geometry(root_universe).export_to_xml()
 
