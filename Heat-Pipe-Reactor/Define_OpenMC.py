@@ -427,11 +427,16 @@ settings.temperature['method']    = 'interpolation'
 # This sits perfectly inside a fuel pin in your inner Ring 0 / Ring 1 zone.
 # A small, safe volume source box right around the center pins 
 # This eliminates point-boundary rejections while keeping fissions concentrated
+# Force OpenMC to distribute source sites proportionally based on where the fissionable material actually exists
+spatial_dist = openmc.stats.Box(
+    [-20.0, -20.0, -core_height/2],
+    [ 20.0,  20.0,  core_height/2]
+)
+
+# Using a standard IndependentSource with a fallback power iteration approach
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.Box(
-        [-3.0, -3.0, -core_height/2],
-        [ 3.0,  3.0,  core_height/2]
-    )
+    space=spatial_dist,
+    constraints={'fissionable': True}
 )
 # Source distribution: starting neutrons are born uniformly throughout the core box 
         # to be changed: use a point source at the center or a mesh-based source from a previous run for faster convergence
