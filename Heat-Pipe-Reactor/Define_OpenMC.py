@@ -427,12 +427,10 @@ settings.temperature['method']    = 'interpolation'
 
 # CHANGE: source point at center of hex core (was at fuel_r offset in reference)
 # NEW CHANGE: Refocused box boundaries around active fuel matrix zone to drop initialization time
+# A single point source placed inside the very first inner fuel pin ring zone 
+# Pin 1 center is at x=0.95, y=0.0, z=0.0 which is explicitly guaranteed to be UO2 fuel
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.Box(
-        [0.0, 0.0, -core_height/2],
-        [6.0, 6.0,  core_height/2],
-        only_fissionable=True
-    )
+    space=openmc.stats.Point(xyz=(0.95, 0.0, 0.0))
 )
 # Source distribution: starting neutrons are born uniformly throughout the core box 
         # to be changed: use a point source at the center or a mesh-based source from a previous run for faster convergence
