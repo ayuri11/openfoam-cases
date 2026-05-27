@@ -436,7 +436,6 @@ settings.source = openmc.IndependentSource(
 )
 # Source distribution: starting neutrons are born uniformly throughout the core box 
         # to be changed: use a point source at the center or a mesh-based source from a previous run for faster convergence
-)
 settings.export_to_xml()
 
 
