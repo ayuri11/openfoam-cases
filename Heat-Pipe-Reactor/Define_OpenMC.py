@@ -439,7 +439,7 @@ spatial_dist = openmc.stats.Box(
 # A simple local point source placed explicitly where fuel exists
 # Completely stripped of constraints or only_fissionable parameters to avoid the rejection crash
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.Point(xyz=(1.0, 0.0, 0.0))
+    space=openmc.stats.Point(xyz=(0.95, 0.0, 0.0))
 )
 # Source distribution: starting neutrons are born uniformly throughout the core box 
         # to be changed: use a point source at the center or a mesh-based source from a previous run for faster convergence
