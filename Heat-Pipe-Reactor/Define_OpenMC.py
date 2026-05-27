@@ -415,8 +415,13 @@ settings.temperature['method']    = 'interpolation'
 # Pin 1 center is at x=0.95, y=0.0, z=0.0 which is explicitly guaranteed to be UO2 fuel
 # Place a point source exactly at x=0.95, y=0.0, z=0.0. 
 # This sits perfectly inside a fuel pin in your inner Ring 0 / Ring 1 zone.
+# A small, safe volume source box right around the center pins 
+# This eliminates point-boundary rejections while keeping fissions concentrated
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.Point(xyz=(0.95, 0.0, 0.0))
+    space=openmc.stats.Box(
+        [-1.0, -1.0, -core_height/2],
+        [ 1.0,  1.0,  core_height/2]
+    )
 )
 # Source distribution: starting neutrons are born uniformly throughout the core box 
         # to be changed: use a point source at the center or a mesh-based source from a previous run for faster convergence
