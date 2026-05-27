@@ -178,16 +178,31 @@ sym_plane_2 = openmc.Plane(
 # FIX: reuses stored surfaces for graphite exclusion region instead of redefining them
 # redefining surfaces caused geometry conflicts and lost particles error
 def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, haynes_mat, b4c_mat):
-    # NEW CHANGE: Local layout position dimensions scaled down proportionally to ensure structural safety. 
-    # This prevents geometry overlapping errors inside the corrected 5.5 cm flat-to-flat matrix boundaries.
     pin_ring1_r = 0.95  # cm — inner ring of 6 fuel elements
     pin_ring2_r = 1.85  # cm — outer ring of 6 fuel elements
     hp_ring_r   = 2.65  # cm — 6 heat transport interfaces at hex corners
 
     cells = []
-    # Modern OpenMC syntax using the HexagonalPrism class; Uses the standard hex boundary prism to cleanly cut off and truncate the boundaries of pins/HPs
-    hex_prism = openmc.model.hexagonal_prism(edge_length=cell_flat / math.sqrt(3), orientation='x').boundary
-    graphite_region = -hex_prism  # This represents everything inside the prism
+    
+    # CALCULATE HEXAGON PLANE BOUNDARIES MANUALLY FOR VERSION STABILITY
+    # side-to-side distance is cell_flat. The distance from center to a flat face is cell_flat / 2.
+    d = cell_flat / 2.0
+    
+    # Define the 6 bounding planes of a hexagon oriented with flat faces perpendicular to X
+    px1 = openmc.XPlane(x0=-d)
+    px2 = openmc.XPlane(x0=d)
+    
+    # Slanted planes equations: +/- 0.5*x +/- sqrt(3)/2 * y = d
+    # Written as general planes: ax + by + cz = d
+    s32 = math.sqrt(3.0) / 2.0
+    p1 = openmc.Plane(a=0.5,  b=s32,  c=0.0, d=d)
+    p2 = openmc.Plane(a=0.5,  b=-s32, c=0.0, d=d)
+    p3 = openmc.Plane(a=-0.5, b=s32,  c=0.0, d=d)
+    p4 = openmc.Plane(a=-0.5, b=-s32, c=0.0, d=d)
+    
+    # An intersection of the inside space of all 6 planes defines the inner hex region
+    hex_region = (+px1 & -px2 & -p1 & -p2 & +p3 & +p4)
+    graphite_region = hex_region
 
     # 6 fuel pins: inner ring
     for i in range(6):
@@ -195,7 +210,7 @@ def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, h
         x0_pos = pin_ring1_r * math.cos(ang)
         y0_pos = pin_ring1_r * math.sin(ang)
         pin_s = openmc.ZCylinder(x0=x0_pos, y0=y0_pos, r=fuel_pin_r)
-        cells.append(openmc.Cell(fill=fuel_material, region=-pin_s & -hex_prism))
+        cells.append(openmc.Cell(fill=fuel_material, region=-pin_s & hex_region))
         graphite_region &= +pin_s
 
     # 6 fuel pins: outer ring (offset 30 deg from inner)
@@ -204,7 +219,7 @@ def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, h
         x0_pos = pin_ring2_r * math.cos(ang)
         y0_pos = pin_ring2_r * math.sin(ang)
         pin_s = openmc.ZCylinder(x0=x0_pos, y0=y0_pos, r=fuel_pin_r)
-        cells.append(openmc.Cell(fill=fuel_material, region=-pin_s & -hex_prism))
+        cells.append(openmc.Cell(fill=fuel_material, region=-pin_s & hex_region))
         graphite_region &= +pin_s
 
     # 6 heat pipes: at hex corners
@@ -215,18 +230,18 @@ def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, h
         hp_inner_s = openmc.ZCylinder(x0=x0_pos, y0=y0_pos, r=hp_radius - hp_wall_thick)
         hp_outer_s = openmc.ZCylinder(x0=x0_pos, y0=y0_pos, r=hp_radius)
         
-        cells.append(openmc.Cell(fill=sodium_mat, region=-hp_inner_s & -hex_prism))
-        cells.append(openmc.Cell(fill=haynes_mat, region=+hp_inner_s & -hp_outer_s & -hex_prism))
+        cells.append(openmc.Cell(fill=sodium_mat, region=-hp_inner_s & hex_region))
+        cells.append(openmc.Cell(fill=haynes_mat, region=+hp_inner_s & -hp_outer_s & hex_region))
         graphite_region &= +hp_outer_s
 
     # 1 central rod (control rod for zone1/2, extra HP for zone3 per Section 3.1.1)
     cr_s = openmc.ZCylinder(x0=0, y0=0, r=ctrl_rod_r)
     if center_type == 'control_rod':
-        cells.append(openmc.Cell(fill=b4c_mat, region=-cr_s & -hex_prism))
+        cells.append(openmc.Cell(fill=b4c_mat, region=-cr_s & hex_region))
     elif center_type == 'heat_pipe':
         hp_inner_c = openmc.ZCylinder(x0=0, y0=0, r=hp_radius - hp_wall_thick)
-        cells.append(openmc.Cell(fill=sodium_mat, region=-hp_inner_c & -hex_prism))
-        cells.append(openmc.Cell(fill=haynes_mat, region=+hp_inner_c & -cr_s & -hex_prism))
+        cells.append(openmc.Cell(fill=sodium_mat, region=-hp_inner_c & hex_region))
+        cells.append(openmc.Cell(fill=haynes_mat, region=+hp_inner_c & -cr_s & hex_region))
     graphite_region &= +cr_s
 
     # Graphite fills everything else inside the hex cell block boundaries
@@ -288,26 +303,33 @@ lattice.universes = [
 # FIX: proper outer boundary for 3-ring hex lattice
 # OpenMC hex lattice outer radius must match lattice pitch geometry
 # NEW CHANGE: Scaled edge multi-factor to 6.5 to capture the full 169 element boundary map footprint perfectly
-core_hex = openmc.model.hexagonal_prism(
-    edge_length=cell_flat * 6.5,
-    orientation='x'
-).boundary
+# MANUALLY CONSTRUCT THE OUTER BOUNDARY OF THE LATTICE WEDGE
+D_outer = (cell_flat * 6.5) * (math.sqrt(3.0) / 2.0)
+c_px1 = openmc.XPlane(x0=-D_outer)
+c_px2 = openmc.XPlane(x0=D_outer)
+c_p1 = openmc.Plane(a=0.5,  b=s32,  c=0.0, d=D_outer)
+c_p2 = openmc.Plane(a=0.5,  b=-s32, c=0.0, d=D_outer)
+c_p3 = openmc.Plane(a=-0.5, b=s32,  c=0.0, d=D_outer)
+c_p4 = openmc.Plane(a=-0.5, b=-s32, c=0.0, d=D_outer)
+
+# This represents the inside of the giant core lattice hexagon
+core_hex_region = (+c_px1 & -c_px2 & -c_p1 & -c_p2 & +c_p3 & +c_p4)
 
 # ADD: fill the lattice into a containing cell
 lattice_cell = openmc.Cell(
     fill=lattice,
-    region=-core_hex
+    region=core_hex_region
 )
 
 core_universe = openmc.Universe()
 core_universe.add_cell(lattice_cell)
 
 # FIX: fill space between lattice and outer cylinder
-# prevents undefined void regions causing lost particles
+# ~core_hex_region means everything OUTSIDE the giant core lattice hexagon
 radial_reflector_cell = openmc.Cell(
     fill=be,
     region=(
-        +core_hex
+        ~core_hex_region
         & -outer_boundary
         & +fuel_bottom
         & -fuel_top
