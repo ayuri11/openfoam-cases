@@ -429,10 +429,11 @@ settings.temperature['method']    = 'interpolation'
 # NEW CHANGE: Refocused box boundaries around active fuel matrix zone to drop initialization time
 settings.source = openmc.IndependentSource(
     space=openmc.stats.Box(
-        [-22.0, -22.0, -core_height/2],
-        [ 22.0,  22.0,  core_height/2],
+        [0.0, 0.0, -core_height/2],
+        [6.0, 6.0,  core_height/2],
         only_fissionable=True
     )
+)
 # Source distribution: starting neutrons are born uniformly throughout the core box 
         # to be changed: use a point source at the center or a mesh-based source from a previous run for faster convergence
 )
