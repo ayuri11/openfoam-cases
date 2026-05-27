@@ -388,14 +388,12 @@ settings.temperature['multipole'] = True
 settings.temperature['method']    = 'interpolation'
 
 # Deterministic spatial origin point, isotropic trajectory, and standard U-235 Watt fission spectrum parameters
-spatial_point = openmc.stats.Point(xyz=(0.95, 0.0, 0.0))
-isotropic_dir = openmc.stats.Isotropic()
-fission_energy = openmc.stats.Watt(a=988000.0, b=2.249e-06) 
 
 settings.source = openmc.IndependentSource(
-    space=spatial_point,
-    angle=isotropic_dir,
-    energy=fission_energy
+    space=openmc.stats.Box(
+        [-15.0, -15.0, -core_height/2.0], 
+        [15.0, 15.0, core_height/2.0]
+    )
 )
 settings.export_to_xml()
 
