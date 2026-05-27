@@ -153,9 +153,10 @@ def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, h
 
     cells = []
     # Define the HexagonalPrism object
-    hex_boundary = openmc.HexagonalPrism(edge_length=cell_flat / math.sqrt(3), orientation='x')
+    # Use openmc.model.HexagonalPrism (Capitalized class name)
+    hex_boundary = openmc.model.HexagonalPrism(edge_length=cell_flat / math.sqrt(3), orientation='x')
     
-    # In OpenMC's modern class structure, the inside of the prism is evaluated using the '-' operator on the object
+    # Get the interior region using the unary minus operator
     hex_prism = -hex_boundary
     graphite_region = hex_prism
 
@@ -241,7 +242,8 @@ lattice.universes = [
 ]
 
 # Updated to modern OpenMC HexagonalPrism class
-core_hex_boundary = openmc.HexagonalPrism(
+# Updated to modern OpenMC HexagonalPrism class under the model module
+core_hex_boundary = openmc.model.HexagonalPrism(
     edge_length=cell_flat * 6.5,
     orientation='x'
 )
