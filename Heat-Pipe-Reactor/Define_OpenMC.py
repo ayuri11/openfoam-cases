@@ -434,9 +434,10 @@ spatial_dist = openmc.stats.Box(
 )
 
 # Using a standard IndependentSource with a fallback power iteration approach
+# A single, unconstrained point source sitting inside the center-most fuel region matrix
+# Coordinates are explicitly targeted to land cleanly within the fuel pin boundaries.
 settings.source = openmc.IndependentSource(
-    space=spatial_dist,
-    constraints={'fissionable': True}
+    space=openmc.stats.Point(xyz=(1.0, 0.5, 0.0))
 )
 # Source distribution: starting neutrons are born uniformly throughout the core box 
         # to be changed: use a point source at the center or a mesh-based source from a previous run for faster convergence
