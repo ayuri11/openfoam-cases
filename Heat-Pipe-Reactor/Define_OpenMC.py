@@ -178,31 +178,16 @@ sym_plane_2 = openmc.Plane(
 # FIX: reuses stored surfaces for graphite exclusion region instead of redefining them
 # redefining surfaces caused geometry conflicts and lost particles error
 def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, haynes_mat, b4c_mat):
-    pin_ring1_r = 0.95  # cm — inner ring of 6 fuel elements
-    pin_ring2_r = 1.85  # cm — outer ring of 6 fuel elements
-    hp_ring_r   = 2.65  # cm — 6 heat transport interfaces at hex corners
+    pin_ring1_r = 0.95  # cm
+    pin_ring2_r = 1.85  # cm
+    hp_ring_r   = 2.65  # cm
 
     cells = []
     
-    # CALCULATE HEXAGON PLANE BOUNDARIES MANUALLY FOR VERSION STABILITY
-    # side-to-side distance is cell_flat. The distance from center to a flat face is cell_flat / 2.
-    d = cell_flat / 2.0
-    
-    # Define the 6 bounding planes of a hexagon oriented with flat faces perpendicular to X
-    px1 = openmc.XPlane(x0=-d)
-    px2 = openmc.XPlane(x0=d)
-    
-    # Slanted planes equations: +/- 0.5*x +/- sqrt(3)/2 * y = d
-    # Written as general planes: ax + by + cz = d
-    s32 = math.sqrt(3.0) / 2.0
-    p1 = openmc.Plane(a=0.5,  b=s32,  c=0.0, d=d)
-    p2 = openmc.Plane(a=0.5,  b=-s32, c=0.0, d=d)
-    p3 = openmc.Plane(a=-0.5, b=s32,  c=0.0, d=d)
-    p4 = openmc.Plane(a=-0.5, b=-s32, c=0.0, d=d)
-    
-    # An intersection of the inside space of all 6 planes defines the inner hex region
-    hex_region = (+px1 & -px2 & -p1 & -p2 & +p3 & +p4)
-    graphite_region = hex_region
+    # Define a clean outer bounding cylinder that safely encompasses all inner elements
+    # without overlapping neighboring lattice universes
+    bound_cyl = openmc.ZCylinder(r=cell_flat / 1.732)
+    graphite_region = -bound_cyl
 
     # 6 fuel pins: inner ring
     for i in range(6):
@@ -210,19 +195,19 @@ def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, h
         x0_pos = pin_ring1_r * math.cos(ang)
         y0_pos = pin_ring1_r * math.sin(ang)
         pin_s = openmc.ZCylinder(x0=x0_pos, y0=y0_pos, r=fuel_pin_r)
-        cells.append(openmc.Cell(fill=fuel_material, region=-pin_s & hex_region))
+        cells.append(openmc.Cell(fill=fuel_material, region=-pin_s))
         graphite_region &= +pin_s
 
-    # 6 fuel pins: outer ring (offset 30 deg from inner)
+    # 6 fuel pins: outer ring
     for i in range(6):
         ang = math.radians(i * 60 + 30)
         x0_pos = pin_ring2_r * math.cos(ang)
         y0_pos = pin_ring2_r * math.sin(ang)
         pin_s = openmc.ZCylinder(x0=x0_pos, y0=y0_pos, r=fuel_pin_r)
-        cells.append(openmc.Cell(fill=fuel_material, region=-pin_s & hex_region))
+        cells.append(openmc.Cell(fill=fuel_material, region=-pin_s))
         graphite_region &= +pin_s
 
-    # 6 heat pipes: at hex corners
+    # 6 heat pipes
     for i in range(6):
         ang = math.radians(i * 60)
         x0_pos = hp_ring_r * math.cos(ang)
@@ -230,24 +215,23 @@ def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, h
         hp_inner_s = openmc.ZCylinder(x0=x0_pos, y0=y0_pos, r=hp_radius - hp_wall_thick)
         hp_outer_s = openmc.ZCylinder(x0=x0_pos, y0=y0_pos, r=hp_radius)
         
-        cells.append(openmc.Cell(fill=sodium_mat, region=-hp_inner_s & hex_region))
-        cells.append(openmc.Cell(fill=haynes_mat, region=+hp_inner_s & -hp_outer_s & hex_region))
+        cells.append(openmc.Cell(fill=sodium_mat, region=-hp_inner_s))
+        cells.append(openmc.Cell(fill=haynes_mat, region=+hp_inner_s & -hp_outer_s))
         graphite_region &= +hp_outer_s
 
-    # 1 central rod (control rod for zone1/2, extra HP for zone3 per Section 3.1.1)
+    # 1 central rod
     cr_s = openmc.ZCylinder(x0=0, y0=0, r=ctrl_rod_r)
     if center_type == 'control_rod':
-        cells.append(openmc.Cell(fill=b4c_mat, region=-cr_s & hex_region))
+        cells.append(openmc.Cell(fill=b4c_mat, region=-cr_s))
     elif center_type == 'heat_pipe':
         hp_inner_c = openmc.ZCylinder(x0=0, y0=0, r=hp_radius - hp_wall_thick)
-        cells.append(openmc.Cell(fill=sodium_mat, region=-hp_inner_c & hex_region))
-        cells.append(openmc.Cell(fill=haynes_mat, region=+hp_inner_c & -cr_s & hex_region))
+        cells.append(openmc.Cell(fill=sodium_mat, region=-hp_inner_c))
+        cells.append(openmc.Cell(fill=haynes_mat, region=+hp_inner_c & -cr_s))
     graphite_region &= +cr_s
 
-    # Graphite fills everything else inside the hex cell block boundaries
+    # Graphite fills the remainder of the cell space
     cells.append(openmc.Cell(fill=graphite_material, region=graphite_region))
     return openmc.Universe(cells=cells)
-
 
 # =============================================================================
 # GEOMETRY - HEX LATTICE (line 280-326)
@@ -430,7 +414,10 @@ settings.temperature['method']    = 'interpolation'
 # A single point source placed inside the very first inner fuel pin ring zone 
 # Pin 1 center is at x=0.95, y=0.0, z=0.0 which is explicitly guaranteed to be UO2 fuel
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.Point(xyz=(0.95, 0.0, 0.0))
+    space=openmc.stats.Box(
+        [-5.0, -5.0, -core_height/2],
+        [ 5.0,  5.0,  core_height/2]
+    )
 )
 # Source distribution: starting neutrons are born uniformly throughout the core box 
         # to be changed: use a point source at the center or a mesh-based source from a previous run for faster convergence
