@@ -319,6 +319,9 @@ lattice.universes = [
 # NEW CHANGE: Scaled edge multi-factor to 6.5 to capture the full 169 element boundary map footprint perfectly
 # MANUALLY CONSTRUCT THE OUTER BOUNDARY OF THE LATTICE WEDGE
 D_outer = (cell_flat * 6.5) * (math.sqrt(3.0) / 2.0)
+
+s32 = math.sqrt(3.0) / 2.0
+
 c_px1 = openmc.XPlane(x0=-D_outer)
 c_px2 = openmc.XPlane(x0=D_outer)
 c_p1 = openmc.Plane(a=0.5,  b=s32,  c=0.0, d=D_outer)
