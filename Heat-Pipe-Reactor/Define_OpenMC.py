@@ -265,9 +265,23 @@ zone3_univ = build_unit_cell(fuel_zone3, 'heat_pipe',   graphite, sodium, haynes
 
 # NEW CHANGE: Added structural block universe to construct the radial lattice reflector elements.
 # This permits us to fill outer lattice loops 4, 5, and 6 with true solid Beryllium matrices instead of arbitrary voids.
-reflector_hex = openmc.model.hexagonal_prism(edge_length=cell_flat / math.sqrt(3), orientation='x')
+# NEW CHANGE: Added structural block universe to construct the radial lattice reflector elements.
+# Manually defining planes to avoid the 'Intersection' unary minus error across OpenMC versions
+ref_d = cell_flat / 2.0
+ref_s32 = math.sqrt(3.0) / 2.0
+
+r_px1 = openmc.XPlane(x0=-ref_d)
+r_px2 = openmc.XPlane(x0=ref_d)
+r_p1  = openmc.Plane(a=0.5,  b=ref_s32,  c=0.0, d=ref_d)
+r_p2  = openmc.Plane(a=0.5,  b=-ref_s32, c=0.0, d=ref_d)
+r_p3  = openmc.Plane(a=-0.5, b=ref_s32,  c=0.0, d=ref_d)
+r_p4  = openmc.Plane(a=-0.5, b=-ref_s32, c=0.0, d=ref_d)
+
+# Combine into a clean inner hexagonal region
+reflector_hex_region = (+r_px1 & -r_px2 & -r_p1 & -p2 & +r_p3 & +r_p4) if 'p2' in locals() else (+r_px1 & -r_px2 & -r_p1 & -r_p2 & +r_p3 & +r_p4)
+
 reflector_block_univ = openmc.Universe()
-reflector_block_univ.add_cell(openmc.Cell(fill=be, region=-reflector_hex))
+reflector_block_univ.add_cell(openmc.Cell(fill=be, region=reflector_hex_region))
 
 # ADD: HexLattice definition
 lattice = openmc.HexLattice()
