@@ -152,9 +152,12 @@ def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, h
     hp_ring_r   = 2.65  # cm — 6 heat transport interfaces at hex corners
 
     cells = []
-    # NEW CHANGE: Uses the standard hex boundary prism to cleanly cut off and truncate the boundaries of pins/HPs
-    hex_prism = openmc.model.hexagonal_prism(edge_length=cell_flat / math.sqrt(3), orientation='x')
-    graphite_region = -hex_prism
+    # Define the HexagonalPrism object
+    hex_boundary = openmc.HexagonalPrism(edge_length=cell_flat / math.sqrt(3), orientation='x')
+    
+    # In OpenMC's modern class structure, the inside of the prism is evaluated using the '-' operator on the object
+    hex_prism = -hex_boundary
+    graphite_region = hex_prism
 
     # 6 fuel pins: inner ring
     for i in range(6):
@@ -237,11 +240,12 @@ lattice.universes = [
     [zone1_univ],                # Ring 0: Core Center Cell (12.0% HALEU)
 ]
 
-# NEW CHANGE: Scaled edge multi-factor to 6.5 to capture the full 169 element boundary map footprint perfectly
-core_hex = openmc.model.hexagonal_prism(
+# Updated to modern OpenMC HexagonalPrism class
+core_hex_boundary = openmc.HexagonalPrism(
     edge_length=cell_flat * 6.5,
     orientation='x'
 )
+core_hex = -core_hex_boundary
 
 # ADD: fill the lattice into a containing cell
 lattice_cell = openmc.Cell(
