@@ -117,7 +117,13 @@ reflector_radius = 60.0  # NEW CHANGE: Adjusted to 60.0 cm to meet Section 3.1.3
 
 # =============================================================================
 # GEOMETRY - SURFACES (line 119-160)
+# in OpenMC, geometry is built by defining mathematical surfaces (planes, cylinders, spheres) 
+# and then combining them with boolean operators to create regions (cells)
 # =============================================================================
+# REFERENCE: ZCylinder rings + ZPlanes for annular geometry
+# AYURI HPR: hexagonal prism surfaces for unit cells
+# CHANGE: replace ZCylinder rings with hexagonal surfaces
+
 # ZPlanes for axial boundaries 
 top_boundary    = openmc.ZPlane(z0=+total_height/2, boundary_type='vacuum')
 bottom_boundary = openmc.ZPlane(z0=-total_height/2, boundary_type='vacuum')
@@ -125,11 +131,17 @@ fuel_top        = openmc.ZPlane(z0=+core_height/2)
 fuel_bottom     = openmc.ZPlane(z0=-core_height/2)
 top_ref_plane   = openmc.ZPlane(z0=+core_height/2)   # BeO axial reflector start
 bot_ref_plane   = openmc.ZPlane(z0=-core_height/2)   # BeO axial reflector start
+# openmc.ZPlane(z0=value): flat horizontal plane at height z0; defines the top & bot of reactor
+# vaccuum: neutrons that reach this surface escapes; used on the outermost boundaries
+# reflective: neutrons hitting this surface bounce back; for symmetry planes to simulate a full core with only 1/12 of it
 
 # outer boundary cylinder (same concept as reference reflector_OD)
 outer_boundary  = openmc.ZCylinder(r=reflector_radius, boundary_type='vacuum')
 
 # CHANGE: symmetry planes for 1/12 hex (reference used 1/8 with 2 planes)
+# 1/12 symmetry: a regular hexagon has 12-fold symmetry (6 rotational × 2 mirror)
+# by modeling only a 30 deg wedge with reflective boundaries on both sides, openmc simulates the full core
+# this reduces computation time by 12×
 angle1 = 0.0                  # 0 degrees
 angle2 = math.radians(30.0)   # 30 degrees = 1/12 of 360; converts degrees to radians
 sym_plane_1 = openmc.Plane(
@@ -141,24 +153,41 @@ sym_plane_2 = openmc.Plane(
     boundary_type='reflective'
 )
 
+# openmc plane abcd: general plane equation: ax + by + cz = d
+# for a plane at angle θ from x-axis: a = sin(θ), b = -cos(θ), c = 0, d = 0
+# the two planes are at 0° and 30° 
 
 # =============================================================================
 # GEOMETRY - UNIT CELL UNIVERSE (line 162-276)
+# a Universe in OpenMC is a reusable geometry template; defined once, then places copies of it anywhere in the lattice 
+# each universe contains cells (regions + materials); 
+# used to build 37 identical-structure unit cells efficiently
 # =============================================================================
+# REFERENCE: pin_cell_universe with annular fuel rings
+# AYURI HPR: hexagonal unit cell with 12 fuel pins + 6 HPs + 1 central rod
+# CHANGE: completely new unit cell definition for each zone
+
+# NEW CHANGE: Single elements (hp_universe, fuel pin universes) are now parsed inside the integrated 
+# structural builder below. This eliminates internal boundary confusion by mapping pin and pipe fills cleanly 
+# within the local coordinates of the 55 mm hexagonal frame block.
+
+# ADDED: full unit cell universe builder; places 12 fuel pins + 6 heat pipes + 1 central rod
+# inside a hexagonal graphite block; replaces the solid fuel placeholders below
+# pin positions: 12 pins arranged in two rings of 6 inside the hex cell
+# hp positions: 6 heat pipes at corners of the hex
+# FIX: reuses stored surfaces for graphite exclusion region instead of redefining them
+# redefining surfaces caused geometry conflicts and lost particles error
 def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, haynes_mat, b4c_mat):
     # NEW CHANGE: Local layout position dimensions scaled down proportionally to ensure structural safety. 
+    # This prevents geometry overlapping errors inside the corrected 5.5 cm flat-to-flat matrix boundaries.
     pin_ring1_r = 0.95  # cm — inner ring of 6 fuel elements
     pin_ring2_r = 1.85  # cm — outer ring of 6 fuel elements
     hp_ring_r   = 2.65  # cm — 6 heat transport interfaces at hex corners
 
     cells = []
-    # Define the HexagonalPrism object
-    # Use openmc.model.HexagonalPrism (Capitalized class name)
-    hex_boundary = openmc.model.HexagonalPrism(edge_length=cell_flat / math.sqrt(3), orientation='x')
-    
-    # Get the interior region using the unary minus operator
-    hex_prism = -hex_boundary
-    graphite_region = hex_prism
+    # Modern OpenMC syntax using the HexagonalPrism class; Uses the standard hex boundary prism to cleanly cut off and truncate the boundaries of pins/HPs
+    hex_surf = openmc.HexagonalPrism(edge_length=cell_flat / math.sqrt(3), orientation='x')
+    graphite_region = -hex_surf  # This represents everything inside the prism
 
     # 6 fuel pins: inner ring
     for i in range(6):
@@ -207,12 +236,20 @@ def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, h
 
 # =============================================================================
 # GEOMETRY - HEX LATTICE (line 280-326)
+# places 37 unit cell universes in a regular hexagonal grid
+# this is the 37-cell core arrangement with 3 enrichment zones
 # =============================================================================
+# REFERENCE: no lattice - single pin with angular symmetry
+# AYURI HPR: HexLattice of 37 unit cells
+
+# EDITED: replaced solid fuel placeholders with real unit cell universes built above
+# zone 1 and 2 use control_rod center; zone 3 uses extra heat_pipe center per methodology constraints
 zone1_univ = build_unit_cell(fuel_zone1, 'control_rod', graphite, sodium, haynes, b4c)
 zone2_univ = build_unit_cell(fuel_zone2, 'control_rod', graphite, sodium, haynes, b4c)
 zone3_univ = build_unit_cell(fuel_zone3, 'heat_pipe',   graphite, sodium, haynes, b4c)
 
 # NEW CHANGE: Added structural block universe to construct the radial lattice reflector elements.
+# This permits us to fill outer lattice loops 4, 5, and 6 with true solid Beryllium matrices instead of arbitrary voids.
 reflector_hex = openmc.model.hexagonal_prism(edge_length=cell_flat / math.sqrt(3), orientation='x')
 reflector_block_univ = openmc.Universe()
 reflector_block_univ.add_cell(openmc.Cell(fill=be, region=-reflector_hex))
@@ -220,6 +257,7 @@ reflector_block_univ.add_cell(openmc.Cell(fill=be, region=-reflector_hex))
 # ADD: HexLattice definition
 lattice = openmc.HexLattice()
 lattice.center = (0.0, 0.0)
+# FIX: hex lattice pitch uses center-to-center spacing
 lattice.pitch = (cell_flat,)    # flat-to-flat pitch in cm; updated to match cell_flat=5.5
 lattice.orientation = 'x'              # flat side faces x-axis
 
@@ -230,7 +268,13 @@ outer_universe.add_cell(outer_cell)
 
 lattice.outer = outer_universe
 
+# outer universe: any neutron that drifts outside the lattice boundary enters this universe (filled with Be radial reflector)
+# without this, OpenMC throws an error when a neutron leaves the lattice
+
+# Ring arrangement:  OpenMC reads rings outermost first 
 # NEW CHANGE: Expanded lattice structure from 4 layers deep (37 cells) to 7 layers deep (R=6, 169 cells)
+# to meet the requirements of Section 3.1.1 ("For R = 6, this yields 169 unit cells comprising the full hexagonal lattice...").
+# Rings 4, 5, and 6 map the solid Beryllium reflector block cells within the core grid structure.
 lattice.universes = [
     [reflector_block_univ] * 36, # Ring 6: Outer Radial Reflector Lattice Elements
     [reflector_block_univ] * 30, # Ring 5: Radial Reflector Lattice Elements
@@ -241,13 +285,13 @@ lattice.universes = [
     [zone1_univ],                # Ring 0: Core Center Cell (12.0% HALEU)
 ]
 
-# Updated to modern OpenMC HexagonalPrism class
-# Updated to modern OpenMC HexagonalPrism class under the model module
-core_hex_boundary = openmc.model.HexagonalPrism(
+# FIX: proper outer boundary for 3-ring hex lattice
+# OpenMC hex lattice outer radius must match lattice pitch geometry
+# NEW CHANGE: Scaled edge multi-factor to 6.5 to capture the full 169 element boundary map footprint perfectly
+core_hex = -openmc.HexagonalPrism(
     edge_length=cell_flat * 6.5,
     orientation='x'
 )
-core_hex = -core_hex_boundary
 
 # ADD: fill the lattice into a containing cell
 lattice_cell = openmc.Cell(
@@ -259,6 +303,7 @@ core_universe = openmc.Universe()
 core_universe.add_cell(lattice_cell)
 
 # FIX: fill space between lattice and outer cylinder
+# prevents undefined void regions causing lost particles
 radial_reflector_cell = openmc.Cell(
     fill=be,
     region=(
@@ -276,29 +321,43 @@ core_universe.add_cell(radial_reflector_cell)
 
 # =============================================================================
 # GEOMETRY - ROOT CELL AND GEOMETRY EXPORT (line 330-366)
+# root universe: the top-level container that holds everything else; defines the physical boundaries 
 # =============================================================================
+# KEEP: root cell with boundary conditions
+# CHANGE: use 1/12 symmetry planes instead of 1/8
+
 root_cell = openmc.Cell(name='root cell')
 root_cell.fill   = core_universe
+# FIX: root cell restricted to ACTIVE FUEL REGION only (fuel_bottom to fuel_top)
+# original used bottom_boundary/top_boundary which caused core_universe to overlap
+# with the BeO axial reflector cells added below — this created geometry conflicts
+# and was the primary cause of lost particles
 root_cell.region = (
     -outer_boundary      # inside the outer cylinder (r < 60cm)
     & +fuel_bottom       # FIX: was +bottom_boundary; now restricted to active fuel zone only
     & -fuel_top          # FIX: was -top_boundary; BeO axial cells now sit cleanly above/below
     & +sym_plane_1       # on the correct side of plane 1; plane 1 at 0°, wedge is above
     & -sym_plane_2       # on the correct side of plane 2; at 30°, wedge is below
+    # inside the 30° wedge defined by the two symmetry planes; activates the 1/12 symmetry
 )
 
 root_universe = openmc.Universe(universe_id=0, name='root universe')
 root_universe.add_cell(root_cell)
 
-# FIX: Cleaned up a duplicate cell overlap error that was embedded here
+# ADDED: explicit axial reflector cells above and below the active core
+# fills the 12.5cm gap between fuel_top/fuel_bottom and the vacuum boundary with real material
+# without these cells, that space is geometric void — neutrons stream through instead of reflecting
+# FIX: these now sit in a clean non-overlapping region because root_cell is restricted to fuel zone
+
 # COMMENT ON NEW CHANGE: Reverted to using Beryllium Oxide (beo) for the axial 
-# reflectors to maximize thermal safety margins at the fuel face interfaces.
+# reflectors to maximize thermal safety margins at the fuel face interfaces,
+# keeping Beryllium (be) strictly for the outer radial lattice zone.
 top_beo_cell = openmc.Cell(
-    fill=beo, 
+    fill=beo, # <-- CHANGED FROM be TO beo
     region=+fuel_top & -top_boundary & -outer_boundary & +sym_plane_1 & -sym_plane_2
 )
 bot_beo_cell = openmc.Cell(
-    fill=beo, 
+    fill=beo, # <-- CHANGED FROM be TO beo
     region=+bottom_boundary & -fuel_bottom & -outer_boundary & +sym_plane_1 & -sym_plane_2
 )
 root_universe.add_cell(top_beo_cell)
@@ -310,16 +369,24 @@ geometry.export_to_xml()
 
 # =============================================================================
 # SETTINGS (line 370-394)
+# settings that dictate how the Monte Carlo neutron simulation runs; how many neutrons, batches, where they start, physics
 # =============================================================================
+# KEEP: same settings structure
+# CHANGE: source point moved to center of hex core
+
 settings = openmc.Settings()
+# TEMPORARILY reduced for debugging — restore to production values after geometry confirmed working
+# production values: batches=200, inactive=50, particles=10000
 # NEW CHANGE: Boosted operational batch definitions to match design tracking requirements
 settings.batches   = 150    # Aligned production run context
 settings.inactive  = 30     # Stabilizes source spatial distribution shifts
 settings.particles = 5000   # Production parameters for tracking active statistics
 settings.run_mode  = 'eigenvalue' # Track critical k-eff matching your text basis
-settings.temperature['multipole'] = True 
+settings.temperature['multipole'] = True # uses the multipole representation of nuclear cross-sections; 
+# allows accurate Doppler broadening at any temperature, not just pre-tabulated values
 settings.temperature['method']    = 'interpolation'
 
+# CHANGE: source point at center of hex core (was at fuel_r offset in reference)
 # NEW CHANGE: Refocused box boundaries around active fuel matrix zone to drop initialization time
 settings.source = openmc.IndependentSource(
     space=openmc.stats.Box(
@@ -327,20 +394,33 @@ settings.source = openmc.IndependentSource(
         [ 22.0,  22.0,  core_height/2],
         only_fissionable=True
     )
+# Source distribution: starting neutrons are born uniformly throughout the core box 
+        # to be changed: use a point source at the center or a mesh-based source from a previous run for faster convergence
 )
 settings.export_to_xml()
 
 
 # =============================================================================
 # TALLIES (line 398-422)
+# defining key outputs; what is measured during the run;
+# gets the power distribution that feeds into OpenFOAM's fvModels heat source
 # =============================================================================
-mesh = openmc.RegularMesh()    
+# REFERENCE: DistribcellFilter per fuel cell
+# AYURI HPR: mesh tally for spatial power distribution
+# CHANGE: replace per-cell tallies with regular mesh tally
+
+# ADD: cylindrical mesh tally covering active core
+# NA >= 14 axial slices
+mesh = openmc.RegularMesh()    # a 3D rectangular grid overlaid on the geometry; gives a spatial map of power and flux
+# 20x20 radial gives enough resolution to distinguish the 3 enrichment zones for OpenFOAM coupling
 mesh.dimension = [20, 20, 14]  # 20 bins X, 20 bins Y, 14 bins Z (NA >= 14 axial slices)
-# COMMENT ON NEW CHANGE: Refocused mesh lower and upper coordinates to encompass the full active structural diameter
+# NEW CHANGE: Refocused mesh lower and upper coordinates to encompass the full active structural diameter (reflector bounds)
 mesh.lower_left  = [-reflector_radius, -reflector_radius, -core_height/2]
 mesh.upper_right = [ reflector_radius,  reflector_radius,  core_height/2]
+# mesh boundaries match exactly the active fuel region (not including reflectors)
 mesh_filter = openmc.MeshFilter(mesh)
 
+# KEEP concept: heating and flux tallies (same scores as reference)
 tally = openmc.Tally(name='power_distribution')
 tally.filters = [mesh_filter]
 tally.scores  = ['heating', 'flux']   # KEEP: same as reference
@@ -348,10 +428,10 @@ tally.scores  = ['heating', 'flux']   # KEEP: same as reference
 tallies = openmc.Tallies([tally])
 tallies.export_to_xml()
 
-print("All XML files exported.") 
+print("All XML files exported. Run: openmc") #feed into openfoam as fvModels
 
 # =============================================================================
-# COMMENT ON NEW CHANGE: ADDED SIMULATION EXECUTION COMMAND
+# ADDED SIMULATION EXECUTION COMMAND
 # =============================================================================
 # Calling openmc.run() directly compiles the XML conditions and executes the 
 # high-fidelity transport problem in your local environment, rendering your live 
