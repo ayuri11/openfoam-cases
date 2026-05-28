@@ -281,7 +281,7 @@ core_universe.add_cell(lattice_cell)
 radial_reflector_cell = openmc.Cell(
     fill=be,
     region=(
-        +core_hex
+        ~core_hex
         & -outer_boundary
         & +fuel_bottom
         & -fuel_top
