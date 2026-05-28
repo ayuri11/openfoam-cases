@@ -352,18 +352,21 @@ settings.run_mode  = 'fixed source' # <-- RESTORED fixed source to show original
 settings.temperature['multipole'] = True # allows accurate Doppler broadening at any temperature
 settings.temperature['method']    = 'interpolation'
 
-# CHANGE: source point at center of hex core (was at fuel_r offset in reference)
-# FIX: replaced rectangular Box source with CylindricalIndependent bounded to the 30° wedge
-# The old Box source spawned particles in the rectangular corners that lie outside the wedge region
-# and outside any defined cell — those particles were immediately lost before transport even began
-# (visible in the log as "particle 1 crossed surface X and could not be located")
-# CylindricalIndependent with phi restricted to [0, 30°] ensures every source particle
-# is born inside a valid geometry cell within the active fuel region
+# FIX: Source redefined as a Box tightly bounded inside the 30° wedge
+# CylindricalIndependent caused >95% rejection because OpenMC's sampler
+# rejection-tests each point against geometry cells, and the cylindrical
+# volume extends into reflective boundary surfaces which count as rejections.
+#
+# A Box aligned to the wedge's Cartesian footprint avoids this:
+# The 30° wedge from 0° to 30° spans x > 0, y > 0, y < x*tan(30°)
+# For r_max = core_radius * 0.5 = 22.5 cm:
+#   x range: [0, 22.5]
+#   y range: [0, 22.5 * tan(30°)] = [0, ~13.0]
+# This box fits entirely inside the wedge — no boundary crossings at birth
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.CylindricalIndependent(
-        r=openmc.stats.Uniform(0, core_radius * 0.5),        # sample within inner half of active core
-        phi=openmc.stats.Uniform(0, math.radians(30.0)),     # matches the 0°–30° symmetry wedge
-        z=openmc.stats.Uniform(-core_height/2, core_height/2) # full axial active fuel span
+    space=openmc.stats.Box(
+        [0.5,  0.0,  -core_height/2],        # small x offset avoids the z-axis edge
+        [22.0, 12.5,  core_height/2]          # y_max = 22 * tan(30°) ≈ 12.7, rounded down
     ),
     angle=openmc.stats.Isotropic()
 )
@@ -390,6 +393,17 @@ tallies = openmc.Tallies([tally])
 tallies.export_to_xml()
 
 print("All XML files exported. Starting OpenMC simulation execution block...") 
+
+# export a geometry plot for visual inspection
+plot = openmc.Plot()
+plot.basis = 'xy'
+plot.origin = (11.0, 6.0, 0.0)   # center of the wedge
+plot.width = (44.0, 26.0)
+plot.pixels = (1000, 500)
+plot.color_by = 'material'
+plots = openmc.Plots([plot])
+plots.export_to_xml()
+openmc.plot_geometry()
 
 # Calling openmc.run() directly compiles the XML conditions and executes the transport problem
 openmc.run()
