@@ -378,8 +378,8 @@ settings = openmc.Settings()
 # TEMPORARILY reduced for debugging — restore to production values after geometry confirmed working
 # production values: batches=200, inactive=50, particles=10000
 # NEW CHANGE: Boosted operational batch definitions to match design tracking requirements
-settings.batches   = 150    # Aligned production run context
-settings.inactive  = 30     # Stabilizes source spatial distribution shifts
+settings.batches   = 50    # Aligned production run context
+settings.inactive  = 20     # Stabilizes source spatial distribution shifts
 settings.particles = 5000   # Production parameters for tracking active statistics
 settings.run_mode  = 'fixed source' # Track critical k-eff matching your text basis
 settings.temperature['multipole'] = True # uses the multipole representation of nuclear cross-sections; 
