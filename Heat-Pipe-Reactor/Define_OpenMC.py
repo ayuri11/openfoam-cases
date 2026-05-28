@@ -381,7 +381,7 @@ settings = openmc.Settings()
 settings.batches   = 150    # Aligned production run context
 settings.inactive  = 30     # Stabilizes source spatial distribution shifts
 settings.particles = 5000   # Production parameters for tracking active statistics
-settings.run_mode  = 'eigenvalue' # Track critical k-eff matching your text basis
+settings.run_mode  = 'fixed source' # Track critical k-eff matching your text basis
 settings.temperature['multipole'] = True # uses the multipole representation of nuclear cross-sections; 
 # allows accurate Doppler broadening at any temperature, not just pre-tabulated values
 settings.temperature['method']    = 'interpolation'
