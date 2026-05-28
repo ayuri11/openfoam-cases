@@ -355,8 +355,6 @@ root_universe.add_cell(root_cell)
 top_beo_cell = openmc.Cell(
     fill=beo, # <-- CHANGED FROM be TO beo
     region=+fuel_top & -top_boundary & -outer_boundary & +sym_plane_1 & -sym_plane_2
-    fill=be,
-    region=+fuel_top & -top_boundary & -outer_boundary & +sym_plane_1 & -sym_plane_2
 )
 bot_beo_cell = openmc.Cell(
     fill=beo, # <-- CHANGED FROM be TO beo
