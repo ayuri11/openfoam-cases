@@ -380,7 +380,7 @@ settings.export_to_xml()
 # =============================================================================
 # ADD: cylindrical mesh tally covering active core
 mesh = openmc.RegularMesh()    # a 3D rectangular grid overlaid on the geometry; gives a spatial map of power and flux
-mesh.dimension = [20, 20, 14]  # 20 bins X, 20 bins Y, 14 bins Z (NA >= 14 axial slices)
+mesh.dimension = [50, 50, 28]  # 20 bins X, 20 bins Y, 14 bins Z (NA >= 14 axial slices)
 mesh.lower_left  = [-reflector_radius, -reflector_radius, -core_height/2]
 mesh.upper_right = [ reflector_radius,  reflector_radius,  core_height/2]
 mesh_filter = openmc.MeshFilter(mesh)
