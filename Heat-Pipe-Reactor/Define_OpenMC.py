@@ -264,7 +264,9 @@ lattice.universes = [
 ]
 
 # FIX: proper outer boundary for hex lattice using modern class syntax
-core_hex_boundary = openmc.model.HexagonalPrism(edge_length=cell_flat * 6.5, orientation='x')
+# FIX: edge_length updated from 6.5 to 7.0 to fully enclose all 7 rings (R=0 through R=6)
+# undersized prism caused outer-ring lattice cells to poke outside core_hex → lost particles
+core_hex_boundary = openmc.model.HexagonalPrism(edge_length=cell_flat * 7.0, orientation='x')
 core_hex = -core_hex_boundary
 
 # ADD: fill the lattice into a containing cell
@@ -276,8 +278,11 @@ lattice_cell = openmc.Cell(
 core_universe = openmc.Universe()
 core_universe.add_cell(lattice_cell)
 
-# FIX: fill space between lattice and outer cylinder
-# prevents undefined void regions causing lost particles
+# FIX: removed sym_plane constraints from radial_reflector_cell
+# Previously the wedge cuts here created geometry gaps at the wedge boundaries:
+# particles crossing a lattice surface near the wedge edge landed outside all defined cells
+# The root_cell (below) handles the wedge clipping at the top level — doing it here too
+# caused double-clipping that left undefined slivers of space → lost particles
 radial_reflector_cell = openmc.Cell(
     fill=be,
     region=(
@@ -285,8 +290,7 @@ radial_reflector_cell = openmc.Cell(
         & -outer_boundary
         & +fuel_bottom
         & -fuel_top
-        & +sym_plane_1
-        & -sym_plane_2
+        # sym_plane constraints intentionally removed — wedge enforced at root_cell level only
     )
 )
 
@@ -314,13 +318,20 @@ root_universe.add_cell(root_cell)
 
 # ADDED: explicit axial reflector cells above and below the active core
 # fills the 12.5cm gap between fuel_top/fuel_bottom and the vacuum boundary with real material
+# FIX: removed sym_plane constraints from axial BeO cells
+# Same reason as radial_reflector_cell — wedge clipping at this level created axial boundary gaps
+# where a particle exiting the fuel zone axially could land outside all defined cells → lost
+# The root_cell already restricts the active fuel to the wedge; the axial cells cover the full
+# azimuthal range so axially-travelling neutrons always find a valid cell to enter
 top_beo_cell = openmc.Cell(
     fill=beo, 
-    region=+fuel_top & -top_boundary & -outer_boundary & +sym_plane_1 & -sym_plane_2
+    region=+fuel_top & -top_boundary & -outer_boundary
+    # sym_plane constraints intentionally removed — see note above
 )
 bot_beo_cell = openmc.Cell(
     fill=beo, 
-    region=+bottom_boundary & -fuel_bottom & -outer_boundary & +sym_plane_1 & -sym_plane_2
+    region=+bottom_boundary & -fuel_bottom & -outer_boundary
+    # sym_plane constraints intentionally removed — see note above
 )
 root_universe.add_cell(top_beo_cell)
 root_universe.add_cell(bot_beo_cell)
@@ -342,12 +353,19 @@ settings.temperature['multipole'] = True # allows accurate Doppler broadening at
 settings.temperature['method']    = 'interpolation'
 
 # CHANGE: source point at center of hex core (was at fuel_r offset in reference)
-# Fixed spatial source domain constraint to allow generic initialization outside fuel matrices
+# FIX: replaced rectangular Box source with CylindricalIndependent bounded to the 30° wedge
+# The old Box source spawned particles in the rectangular corners that lie outside the wedge region
+# and outside any defined cell — those particles were immediately lost before transport even began
+# (visible in the log as "particle 1 crossed surface X and could not be located")
+# CylindricalIndependent with phi restricted to [0, 30°] ensures every source particle
+# is born inside a valid geometry cell within the active fuel region
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.Box(
-        [-22.0, -22.0, -core_height/2],
-        [ 22.0,  22.0,  core_height/2]
-    )
+    space=openmc.stats.CylindricalIndependent(
+        r=openmc.stats.Uniform(0, core_radius * 0.5),        # sample within inner half of active core
+        phi=openmc.stats.Uniform(0, math.radians(30.0)),     # matches the 0°–30° symmetry wedge
+        z=openmc.stats.Uniform(-core_height/2, core_height/2) # full axial active fuel span
+    ),
+    angle=openmc.stats.Isotropic()
 )
 settings.export_to_xml()
 
