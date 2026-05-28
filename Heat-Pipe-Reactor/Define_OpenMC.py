@@ -185,9 +185,9 @@ def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, h
     hp_ring_r   = 2.65  # cm — 6 heat transport interfaces at hex corners
 
     cells = []
-    # Modern OpenMC syntax using the HexagonalPrism class; Uses the standard hex boundary prism to cleanly cut off and truncate the boundaries of pins/HPs
-    hex_surf = openmc.HexagonalPrism(edge_length=cell_flat / math.sqrt(3), orientation='x')
-    graphite_region = -hex_surf  # This represents everything inside the prism
+    # NEW CHANGE: Uses the standard hex boundary prism to cleanly cut off and truncate the boundaries of pins/HPs
+    hex_prism = openmc.model.hexagonal_prism(edge_length=cell_flat / math.sqrt(3), orientation='x')
+    graphite_region = -hex_prism
 
     # 6 fuel pins: inner ring
     for i in range(6):
@@ -288,7 +288,7 @@ lattice.universes = [
 # FIX: proper outer boundary for 3-ring hex lattice
 # OpenMC hex lattice outer radius must match lattice pitch geometry
 # NEW CHANGE: Scaled edge multi-factor to 6.5 to capture the full 169 element boundary map footprint perfectly
-core_hex = -openmc.HexagonalPrism(
+core_hex = openmc.model.hexagonal_prism(
     edge_length=cell_flat * 6.5,
     orientation='x'
 )
@@ -355,6 +355,8 @@ root_universe.add_cell(root_cell)
 top_beo_cell = openmc.Cell(
     fill=beo, # <-- CHANGED FROM be TO beo
     region=+fuel_top & -top_boundary & -outer_boundary & +sym_plane_1 & -sym_plane_2
+    fill=be,
+    region=+fuel_top & -top_boundary & -outer_boundary & +sym_plane_1 & -sym_plane_2
 )
 bot_beo_cell = openmc.Cell(
     fill=beo, # <-- CHANGED FROM be TO beo
@@ -414,7 +416,7 @@ settings.export_to_xml()
 mesh = openmc.RegularMesh()    # a 3D rectangular grid overlaid on the geometry; gives a spatial map of power and flux
 # 20x20 radial gives enough resolution to distinguish the 3 enrichment zones for OpenFOAM coupling
 mesh.dimension = [20, 20, 14]  # 20 bins X, 20 bins Y, 14 bins Z (NA >= 14 axial slices)
-# NEW CHANGE: Refocused mesh lower and upper coordinates to encompass the full active structural diameter (reflector bounds)
+# COMMENT ON NEW CHANGE: Refocused mesh lower and upper coordinates to encompass the full active structural diameter (reflector bounds)
 mesh.lower_left  = [-reflector_radius, -reflector_radius, -core_height/2]
 mesh.upper_right = [ reflector_radius,  reflector_radius,  core_height/2]
 # mesh boundaries match exactly the active fuel region (not including reflectors)
@@ -429,11 +431,3 @@ tallies = openmc.Tallies([tally])
 tallies.export_to_xml()
 
 print("All XML files exported. Run: openmc") #feed into openfoam as fvModels
-
-# =============================================================================
-# ADDED SIMULATION EXECUTION COMMAND
-# =============================================================================
-# Calling openmc.run() directly compiles the XML conditions and executes the 
-# high-fidelity transport problem in your local environment, rendering your live 
-# k-effective eigenvalue tracking data in the terminal window.
-openmc.run()
