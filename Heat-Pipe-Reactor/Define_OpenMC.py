@@ -334,19 +334,19 @@ geometry.export_to_xml()
 # settings that dictate how the Monte Carlo neutron simulation runs; how many neutrons, batches, where they start, physics
 # =============================================================================
 settings = openmc.Settings()
-settings.batches   = 20        # Restored low count matching original debugging profile
-settings.inactive  = 0         # Fixed source simulations track total raw histories
+settings.batches   = 20         # Restored low count matching original debugging profile
+settings.inactive  = 0          # Fixed source simulations track total raw histories
 settings.particles = 5000   
 settings.run_mode  = 'fixed source' # <-- RESTORED fixed source to show original leakage tracking and timings
 settings.temperature['multipole'] = True # allows accurate Doppler broadening at any temperature
 settings.temperature['method']    = 'interpolation'
 
 # CHANGE: source point at center of hex core (was at fuel_r offset in reference)
+# Fixed spatial source domain constraint to allow generic initialization outside fuel matrices
 settings.source = openmc.IndependentSource(
     space=openmc.stats.Box(
         [-22.0, -22.0, -core_height/2],
-        [ 22.0,  22.0,  core_height/2],
-        only_fissionable=True
+        [ 22.0,  22.0,  core_height/2]
     )
 )
 settings.export_to_xml()
