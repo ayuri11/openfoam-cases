@@ -324,13 +324,12 @@ root_universe.add_cell(root_cell)
 # azimuthal range so axially-travelling neutrons always find a valid cell to enter
 top_beo_cell = openmc.Cell(
     fill=beo, 
-    region=+fuel_top & -top_boundary & -outer_boundary
-    # sym_plane constraints intentionally removed — see note above
+    region=+fuel_top & -top_boundary & -outer_boundary & -sym_plane_1 & +sym_plane_2
 )
+
 bot_beo_cell = openmc.Cell(
     fill=beo, 
-    region=+bottom_boundary & -fuel_bottom & -outer_boundary
-    # sym_plane constraints intentionally removed — see note above
+    region=+bottom_boundary & -fuel_bottom & -outer_boundary & -sym_plane_1 & +sym_plane_2
 )
 root_universe.add_cell(top_beo_cell)
 root_universe.add_cell(bot_beo_cell)
