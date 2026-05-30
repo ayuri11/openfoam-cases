@@ -308,9 +308,8 @@ root_cell.region = (
     -outer_boundary      # inside the outer cylinder (r < 60cm)
     & +fuel_bottom       # restricted to active fuel zone only
     & -fuel_top          # BeO axial cells now sit cleanly above/below
-    & +sym_plane_1       # on the correct side of plane 1; plane 1 at 0°, wedge is above
-    & -sym_plane_2       # on the correct side of plane 2; at 30°, wedge is below
-    # inside the 30° wedge defined by the two symmetry planes; activates the 1/12 symmetry
+    & -sym_plane_1       # CHANGED to negative: -y < 0 -> y > 0
+    & +sym_plane_2       # CHANGED to positive: 0.5x - 0.866y > 0 -> y < 0.577x
 )
 
 root_universe = openmc.Universe(universe_id=0, name='root universe')
@@ -364,9 +363,10 @@ settings.temperature['method']    = 'interpolation'
 #   y range: [0, 22.5 * tan(30°)] = [0, ~13.0]
 # This box fits entirely inside the wedge — no boundary crossings at birth
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.Box(
-        [0.5,  0.0,  -core_height/2],        # small x offset avoids the z-axis edge
-        [22.0, 12.5,  core_height/2]          # y_max = 22 * tan(30°) ≈ 12.7, rounded down
+    space=openmc.stats.CylindricalIndependent(
+        r=openmc.stats.Uniform(0.0, core_radius),
+        phi=openmc.stats.Uniform(0.0, math.radians(30.0)),
+        z=openmc.stats.Uniform(-core_height/2, core_height/2)
     ),
     angle=openmc.stats.Isotropic()
 )
