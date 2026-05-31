@@ -133,7 +133,7 @@ bot_ref_plane   = openmc.ZPlane(z0=-core_height/2)   # BeO axial reflector start
 # reflective: neutrons hitting this surface bounce back; for symmetry planes to simulate a full core with only 1/12 of it
 
 # outer boundary cylinder (same concept as reference reflector_OD)
-outer_boundary  = openmc.ZCylinder(r=reflector_radius, boundary_type='vacuum')
+outer_boundary = openmc.ZCylinder(r=reflector_radius, boundary_type='vacuum')
 
 # CHANGE: symmetry planes for 1/12 hex (reference used 1/8 with 2 planes)
 # 1/12 symmetry: a regular hexagon has 12-fold symmetry (6 rotational × 2 mirror)
@@ -151,7 +151,7 @@ sym_plane_2 = openmc.Plane(
 )
 # openmc plane abcd: general plane equation: ax + by + cz = d
 # for a plane at angle θ from x-axis: a = sin(θ), b = -cos(θ), c = 0, d = 0
-# the two planes are at 0° and 30° 
+# the two planes are at 0° and 30°  
 
 
 # =============================================================================
@@ -413,3 +413,35 @@ openmc.plot_geometry()
 openmc.run()
 
 
+# =============================================================================
+# PARAVIEW VTK EXPORT 
+# This section automatically unpacks the 3D mesh data generated during the run 
+# and writes it into a file that ParaView can read immediately.
+# =============================================================================
+print("\nSimulation finished! Extracting 3D mesh datasets for ParaView...")
+
+# 1. Dynamically locate the correct statepoint file based on your batch settings
+statepoint_filename = f'statepoint.{settings.batches}.h5'
+
+with openmc.StatePoint(statepoint_filename) as sp:
+    # 2. Get our custom 3D tally 
+    tally_output = sp.get_tally(name='power_distribution')
+    
+    # 3. Pull out the raw numerical flux and heating arrays, and flatten them for VTK layout
+    flux_data = tally_output.get_values(scores=['flux']).flatten()
+    heating_data = tally_output.get_values(scores=['heating']).flatten()
+    
+    # 4. Extract the mesh geometry structure linked to the filter
+    mesh_geometry = tally_output.find_filter(openmc.MeshFilter).mesh
+    
+    # 5. Output to a single VTK file holding both physics datasets
+    mesh_geometry.write_data_to_vtk(
+        'reactor_3d_results.vtk', 
+        datasets={
+            'Neutron_Flux': flux_data, 
+            'Nuclear_Heating': heating_data
+        }
+    )
+
+print("Success! 'reactor_3d_results.vtk' has been saved to your working directory.")
+print("Open ParaView, import this file, and look for 'Neutron_Flux' and 'Nuclear_Heating' arrays.")
