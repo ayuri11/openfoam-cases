@@ -348,32 +348,25 @@ geometry.export_to_xml()
 # settings that dictate how the Monte Carlo neutron simulation runs; how many neutrons, batches, where they start, physics
 # =============================================================================
 settings = openmc.Settings()
-settings.batches   = 80         # Restored low count matching original debugging profile
-settings.inactive  = 20          # Fixed source simulations track total raw histories
-settings.particles = 5000   
-settings.run_mode  = 'fixed source' # <-- RESTORED fixed source to show original leakage tracking and timings
-settings.temperature['multipole'] = True # allows accurate Doppler broadening at any temperature
+settings.batches   = 100         # Total number of neutron generations to simulate
+settings.inactive  = 20          # Discard the first 20 generations to let the flux settle
+settings.particles = 5000        # Neutrons per generation
+
+# Settings in Criticality / k-effective mode
+settings.temperature['multipole'] = True
 settings.temperature['method']    = 'interpolation'
 
-# FIX: Source redefined as a Box tightly bounded inside the 30° wedge
-# CylindricalIndependent caused >95% rejection because OpenMC's sampler
-# rejection-tests each point against geometry cells, and the cylindrical
-# volume extends into reflective boundary surfaces which count as rejections.
-#
-# A Box aligned to the wedge's Cartesian footprint avoids this:
-# The 30° wedge from 0° to 30° spans x > 0, y > 0, y < x*tan(30°)
-# For r_max = core_radius * 0.5 = 22.5 cm:
-#   x range: [0, 22.5]
-#   y range: [0, 22.5 * tan(30°)] = [0, ~13.0]
-# This box fits entirely inside the wedge — no boundary crossings at birth
-# FIX: Actually implement the Box source as described in the comments
+# Define a spatial bounding box that covers your active fuel region
+lower_left  = [0.0, 0.0, -core_height/2]
+upper_right = [22.5, 13.0, core_height/2]
+spatial_dist = openmc.stats.Box(lower_left, upper_right)
+
+# Force the initial source neutrons to ONLY spawn inside fissionable material
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.Box(
-        lower_left=[0.0, 0.0, -core_height/2],
-        upper_right=[22.5, 13.0, core_height/2] # Matches the 22.5 and ~13.0 comment bounds
-    ),
-    angle=openmc.stats.Isotropic()
+    space=spatial_dist, 
+    constraints={'fissionable': True} 
 )
+
 settings.export_to_xml()
 
 
