@@ -232,9 +232,9 @@ def build_unit_cell(fuel_material, center_type, graphite_material, sodium_mat, h
 # =============================================================================
 # REFERENCE: no lattice - single pin with angular symmetry
 # AYURI HPR: HexLattice of unit cells
-zone1_univ = build_unit_cell(fuel_zone1, 'control_rod', graphite, sodium, haynes, b4c)
-zone2_univ = build_unit_cell(fuel_zone2, 'control_rod', graphite, sodium, haynes, b4c)
-zone3_univ = build_unit_cell(fuel_zone3, 'heat_pipe',   graphite, sodium, haynes, b4c)
+zone1_univ = build_unit_cell(fuel_zone1, 'control_rod', graphite, sodium, haynes, sodium)
+zone2_univ = build_unit_cell(fuel_zone2, 'control_rod', graphite, sodium, haynes, sodium)
+zone3_univ = build_unit_cell(fuel_zone3, 'heat_pipe',   graphite, sodium, haynes, sodium)
 
 # Structural block universe to construct the radial lattice reflector elements
 reflector_block_univ = openmc.Universe()
