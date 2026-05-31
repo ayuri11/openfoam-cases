@@ -266,7 +266,8 @@ lattice.universes = [
 # FIX: proper outer boundary for hex lattice using modern class syntax
 # FIX: edge_length updated from 6.5 to 7.0 to fully enclose all 7 rings (R=0 through R=6)
 # undersized prism caused outer-ring lattice cells to poke outside core_hex → lost particles
-core_hex_boundary = openmc.model.HexagonalPrism(edge_length=cell_flat * 7.0, orientation='x')
+# FIX: Increase edge_length multiplier to 10.0 so it safely clears the ~41.3cm lattice corner
+core_hex_boundary = openmc.model.HexagonalPrism(edge_length=cell_flat * 10.0, orientation='x')
 core_hex = -core_hex_boundary
 
 # ADD: fill the lattice into a containing cell
@@ -361,11 +362,11 @@ settings.temperature['method']    = 'interpolation'
 #   x range: [0, 22.5]
 #   y range: [0, 22.5 * tan(30°)] = [0, ~13.0]
 # This box fits entirely inside the wedge — no boundary crossings at birth
+# FIX: Actually implement the Box source as described in the comments
 settings.source = openmc.IndependentSource(
-    space=openmc.stats.CylindricalIndependent(
-        r=openmc.stats.Uniform(0.0, core_radius),
-        phi=openmc.stats.Uniform(0.0, math.radians(30.0)),
-        z=openmc.stats.Uniform(-core_height/2, core_height/2)
+    space=openmc.stats.Box(
+        lower_left=[0.0, 0.0, -core_height/2],
+        upper_right=[22.5, 13.0, core_height/2] # Matches the 22.5 and ~13.0 comment bounds
     ),
     angle=openmc.stats.Isotropic()
 )
