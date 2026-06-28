@@ -4,15 +4,15 @@ import json
 
 # =============================================================================
 # PHASE 2: EXTRACT PIN POWER DISTRIBUTION FROM OPENMC STATEPOINT
-# reads statepoint.100.h5 → extracts heating tally → converts to W/m³
+# reads ../PHASE 1/statepoint.100.h5 → extracts heating tally → converts to W/m³
 # output feeds into OpenFOAM fvModels as heat source per mesh cell
 # =============================================================================
 
 # =============================================================================
 # STEP 1: LOAD STATEPOINT AND EXTRACT TALLY
 # =============================================================================
-print("Loading statepoint.100.h5...")
-sp = openmc.StatePoint('statepoint.100.h5')
+print("Loading ../PHASE 1/statepoint.100.h5...")
+sp = openmc.StatePoint('../PHASE 1/statepoint.100.h5')
 
 # get the power distribution tally defined in Phase 1
 tally = sp.get_tally(name='power_distribution')
@@ -45,7 +45,7 @@ eV_to_J     = 1.60218e-19     # J per eV
 # mesh geometry (must match what was defined in Phase 1)
 core_radius      = 45.0        # cm
 core_height      = 160.0       # cm
-mesh_nx, mesh_ny, mesh_nz = 20, 20, 14
+mesh_nx, mesh_ny, mesh_nz = 50, 50, 28
 
 # mesh cell volume
 # total mesh spans 2*core_radius × 2*core_radius × core_height
@@ -123,8 +123,8 @@ print("Saved: axial_power_profile.csv")
 
 # save summary statistics as json for methodology documentation
 summary = {
-    'k_effective': float(sp.k_combined[0]),
-    'k_uncertainty': float(sp.k_combined[1]),
+    'k_effective': float(sp.keff.n),
+    'k_uncertainty': float(sp.keff.s),
     'P_total_MWth': P_total_W / 1e6,
     'norm_factor': float(norm_factor),
     'q_max_Wm3': float(q_Wm3.max()),
