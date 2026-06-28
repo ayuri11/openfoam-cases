@@ -30,7 +30,7 @@ heating_std  = tally.get_values(scores=['heating'], value='std_dev').flatten()
 flux_mean    = tally.get_values(scores=['flux'],    value='mean').flatten()
 
 print(f"\nRaw heating array shape: {heating_mean.shape}")
-print(f"Mesh dimensions: 20 x 20 x 14 = {20*20*14} cells")
+print(f"Mesh dimensions: 50 x 50 x 28 = {50*50*28} cells")
 print(f"Total heating (sum): {heating_mean.sum():.4e} eV/source-neutron")
 
 # =============================================================================
