@@ -123,41 +123,17 @@ for ring, r in hp_positions_cm.items():
 # in full IVTBC: each HP gets weighted by local heat flux
 # for simplified: use axial-averaged power split by ring position
 
-# radial power weighting: inner rings have higher flux (from q_3d)
-# map HP position to mesh index
-mesh_r_span  = 90.0   # cm (from -45 to +45)
-mesh_nr      = 50     # radial bins in x or y
-
-def r_to_mesh_idx(r_cm):
-    # convert radial position to approximate mesh bin index
-    return int((r_cm + mesh_r_span/2) / mesh_r_span * mesh_nr)
-
-# get radial power weighting from q_3d (average over z and one axis)
-q_radial = q_3d.mean(axis=(1, 2))  # average over y and z → shape (50,)
-
-# compute power fraction at each ring
-ring_weights = {}
-for ring, r in hp_positions_cm.items():
-    idx = r_to_mesh_idx(r)
-    idx = max(0, min(idx, mesh_nr-1))  # clamp to valid range
-    ring_weights[ring] = float(q_radial[idx])
-
-# normalize weights
-total_weight = sum(w_val * hp_counts[ring]
-                   for ring, w_val in ring_weights.items())
-
-# power per heat pipe per ring (W)
+# equal power distribution across all N heat pipes
+# consistent with Price et al. Eq. 6 uniform initialization
+# each HP absorbs equal share of total thermal power
+# radial weighting will be applied in full OpenFOAM IVTBC (Phase 3B)
 q_per_hp = {}
 for ring in hp_positions_cm:
-    fraction   = ring_weights[ring] * hp_counts[ring] / total_weight
-    q_per_hp[ring] = P_total * fraction / hp_counts[ring]
-    print(f"  {ring}: q_per_HP = {q_per_hp[ring]/1e3:.2f} kW  "
-          f"(fraction={fraction:.3f})")
+    q_per_hp[ring] = P_total / N   # W — equal share per HP
+    print(f"  {ring}: q_per_HP = {q_per_hp[ring]/1e3:.2f} kW  (equal distribution)")
 
-# verify total
-total_check = sum(q_per_hp[ring] * hp_counts[ring]
-                  for ring in hp_positions_cm)
-print(f"  Total power check: {total_check/1e6:.3f} MWth (should be ~15 MWth)")
+total_check = sum(q_per_hp[ring] * hp_counts[ring] for ring in hp_positions_cm)
+print(f"  Total power check: {total_check/1e6:.3f} MWth (should be ~{P_total/1e6} MWth)")
 
 
 # =============================================================================
