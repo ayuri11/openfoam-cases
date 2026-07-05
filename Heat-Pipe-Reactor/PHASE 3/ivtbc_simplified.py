@@ -46,7 +46,7 @@ le = 1.82      # m — evaporator length (insertion depth into core)
 T_inf = 791.0  # K — heat exchanger coolant temperature (average inlet/outlet)
 
 # --- reactor design parameters ---
-P_total = 15e6  # W — total thermal power (15 MWth)
+P_total = 2.5e6  # W — total thermal power (2.5 MWth)
 N = 259          # number of heat pipes (rings 0-3: 37 active fuel cells × 1 HP each)
                # conservative estimate — actual HP count depends on final geometry
 
