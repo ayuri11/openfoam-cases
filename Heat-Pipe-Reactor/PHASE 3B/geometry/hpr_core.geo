@@ -1,283 +1,224 @@
 // =============================================================================
-// hpr_core.geo — gmsh geometry script for HPR core thermal model
-// PHASE 3B: OpenFOAM IVTBC thermal-hydraulic analysis
-// Geometry: 1/12 symmetry wedge of hexagonal graphite monolith
-// Includes: fuel pin zones, heat pipe holes, reflector boundary
-// Units: meters (OpenFOAM standard)
+// hpr_core.geo — HPR core geometry for OpenFOAM IVTBC thermal analysis
+// PHASE 3B: simplified solid graphite wedge with heat pipe boundary surfaces
+// Approach: solid wedge extrusion with HP holes as embedded circles
+// Units: meters
 // =============================================================================
 
 // =============================================================================
-// DESIGN PARAMETERS (from methodology Section 3.2)
-// all dimensions in meters
+// PARAMETERS
 // =============================================================================
+core_height = 1.60;      // m — active fuel height
+n_axial     = 28;        // axial layers (NA=28)
 
-// core dimensions
-core_height   = 1.60;    // m — active fuel height (160 cm)
-cell_flat     = 0.055;   // m — unit cell flat-to-flat (5.5 cm)
+// heat pipe geometry
+hp_r   = 0.00450;        // m — HP outer radius (4.5mm)
 
-// heat pipe geometry (Price et al. 2023)
-hp_r          = 0.00450; // m — heat pipe outer radius (scaled: 4.5 mm)
-hp_wall       = 0.00089; // m — Haynes 230 wall thickness (0.89 mm)
+// pin geometry  
+fp_r   = 0.00350;        // m — fuel pin radius (3.5mm)
 
-// fuel pin geometry
-fp_r          = 0.00350; // m — fuel pin radius (scaled: 3.5 mm)
+// ring positions (from Phase 3A build_unit_cell)
+hp_ring_r  = 0.0265;     // m — HP at hex corners
+fp1_ring_r = 0.0095;     // m — inner fuel pins
+fp2_ring_r = 0.0185;     // m — outer fuel pins
 
-// control rod
-cr_r          = 0.00450; // m — control rod radius = hp_r
+// wedge outer radius (graphite block inscribed circle)
+wedge_r = 0.0275;        // m — apothem of hex cell (cell_flat/2 = 5.5/2 cm)
 
-// pin ring positions within unit cell (from build_unit_cell)
-pin_ring1_r   = 0.0095;  // m — inner ring of 6 fuel pins (0.95 cm)
-pin_ring2_r   = 0.0185;  // m — outer ring of 6 fuel pins (1.85 cm)
-hp_ring_r     = 0.0265;  // m — 6 heat pipes at hex corners (2.65 cm)
-
-// mesh refinement levels
-lc_coarse     = 0.004;   // m — background graphite mesh size
-lc_fine       = 0.001;   // m — mesh size near pins and HPs
-lc_hp         = 0.0008;  // m — mesh size at heat pipe surfaces (critical for BC)
-
-// axial layers
-n_axial       = 28;      // number of axial layers (NA=28 per methodology)
+// mesh sizes
+lc_bg  = 0.003;          // background mesh
+lc_hp  = 0.0008;         // near heat pipes (fine for IVTBC BC)
+lc_fp  = 0.001;          // near fuel pins
 
 // =============================================================================
-// GEOMETRY: 1/12 SYMMETRY WEDGE
-// A regular hexagon has 12-fold symmetry (6 rotational × 2 mirror)
-// We model a 30° wedge from 0° to 30°
-// The wedge contains ONE representative unit cell
+// WEDGE BOUNDARY POINTS (30 degree slice, 1/12 symmetry)
 // =============================================================================
-
-// hexagon apothem (flat-to-center distance) = cell_flat/2
-apothem = cell_flat / 2.0;   // 0.0275 m
-
-// hex vertex radius = cell_flat / sqrt(3)
-vertex_r = cell_flat / Sqrt(3.0);   // 0.03175 m
-
-// 1/12 wedge: 30 degree slice
-// Point 1: origin (core center)
-// Points 2,3: on the two symmetry planes at radius = outer reflector boundary
-outer_r = 0.45;   // m — outer reflector radius (45 cm)
-
-// =============================================================================
-// POINTS — WEDGE BOUNDARY
-// =============================================================================
-
 // origin
-Point(1) = {0, 0, 0, lc_coarse};
+Point(1) = {0, 0, 0, lc_bg};
 
-// symmetry plane 1: at 0° (along +x axis)
-Point(2) = {outer_r, 0, 0, lc_coarse};
+// symmetry plane 1: along x-axis (0 degrees)
+Point(2) = {wedge_r, 0, 0, lc_bg};
 
-// symmetry plane 2: at 30° 
-Point(3) = {outer_r * Cos(Pi/6), outer_r * Sin(Pi/6), 0, lc_coarse};
+// arc midpoint for meshing
+Point(3) = {wedge_r*Cos(Pi/12), wedge_r*Sin(Pi/12), 0, lc_bg};
 
-// =============================================================================
-// POINTS — FUEL PINS (inner ring, 1/12 wedge has 1 pin from inner ring)
-// inner ring: 6 pins at 0°, 60°, 120°, 180°, 240°, 300°
-// in 30° wedge: partial pin at 0° (on symmetry plane)
-// use center of first inner pin at 0°: x=pin_ring1_r, y=0
-// =============================================================================
+// symmetry plane 2: at 30 degrees
+Point(4) = {wedge_r*Cos(Pi/6), wedge_r*Sin(Pi/6), 0, lc_bg};
 
-// inner ring pin center at 0° (on symmetry plane 1)
-fp1_x = pin_ring1_r;
-fp1_y = 0.0;
-
-// inner ring pin at 60° (partially in wedge)
-fp2_x = pin_ring1_r * Cos(Pi/3);
-fp2_y = pin_ring1_r * Sin(Pi/3);
-
-// outer ring pin at 30° (on symmetry plane 2, center of wedge)
-fp3_x = pin_ring2_r * Cos(Pi/6);
-fp3_y = pin_ring2_r * Sin(Pi/6);
+// arc center (at origin)
+Point(5) = {0, 0, 0, lc_bg};
 
 // =============================================================================
-// POINTS — HEAT PIPES (at hex corners)
-// hp_ring_r = 2.65 cm from cell center
-// in 30° wedge: HP at 0° (on sym plane 1) and HP at 30° (on sym plane 2)
+// WEDGE BOUNDARY LINES
 // =============================================================================
+// symmetry plane 1 (along x-axis)
+Line(1) = {1, 2};
 
-// HP at 0° (on symmetry plane 1)
-hp1_x = hp_ring_r;
-hp1_y = 0.0;
+// outer arc (30 degrees)
+Circle(2) = {2, 5, 3};
+Circle(3) = {3, 5, 4};
 
-// HP at 30° (on symmetry plane 2 — middle of wedge)
-hp2_x = hp_ring_r * Cos(Pi/6);
-hp2_y = hp_ring_r * Sin(Pi/6);
+// symmetry plane 2 (at 30 degrees, back to origin)
+Line(4) = {4, 1};
 
-// =============================================================================
-// SIMPLIFIED GEOMETRY FOR PHASE 3B
-// Instead of modeling all pins/HPs explicitly (complex intersection issues),
-// we use a simplified approach:
-// - Graphite monolith as main solid region
-// - Heat pipe holes as circular cutouts with IVTBC boundary condition
-// - Fuel pins treated as volumetric heat sources within graphite
-// This follows Price et al. (2023) approach exactly
-// =============================================================================
-
-// --- Central region circle (represents core active zone) ---
-// radius = distance to outermost HP + hp_r
-core_active_r = hp_ring_r + hp_r + 0.005;   // ~0.032 m
-
-// --- Outer boundary of graphite block ---
-// use inscribed circle of hex (apothem) for simplicity in 2D cross section
-// this avoids complex hex corner geometry while preserving area
-graphite_r = apothem;   // 0.0275 m
+// wedge outline
+Line Loop(1) = {1, 2, 3, 4};
 
 // =============================================================================
-// 2D CROSS-SECTION: SIMPLIFIED WEDGE
-// Build as: outer arc → symmetry lines → subtract HP holes and fuel zones
+// HEAT PIPE HOLES
+// HP at 0 degrees (on symmetry plane 1) — half circle in wedge
+// HP at 30 degrees (on symmetry plane 2) — half circle in wedge
+// HP at 15 degrees (inside wedge) — full circle
 // =============================================================================
 
-// Center point
-Point(10) = {0, 0, 0, lc_coarse};
+// --- HP at 15 degrees (fully inside wedge) ---
+hp_mid_x = hp_ring_r * Cos(Pi/12);   // 15 degrees
+hp_mid_y = hp_ring_r * Sin(Pi/12);
 
-// Outer boundary points (at graphite_r on symmetry planes)
-Point(11) = {graphite_r, 0, 0, lc_coarse};           // on sym plane 1
-Point(12) = {graphite_r*Cos(Pi/6), graphite_r*Sin(Pi/6), 0, lc_coarse}; // on sym plane 2
+Point(10) = {hp_mid_x,          hp_mid_y,          0, lc_hp};  // center
+Point(11) = {hp_mid_x + hp_r,   hp_mid_y,          0, lc_hp};  // right
+Point(12) = {hp_mid_x,          hp_mid_y + hp_r,   0, lc_hp};  // top
+Point(13) = {hp_mid_x - hp_r,   hp_mid_y,          0, lc_hp};  // left
+Point(14) = {hp_mid_x,          hp_mid_y - hp_r,   0, lc_hp};  // bottom
 
-// Arc from point 11 to 12 (outer graphite boundary)
-Point(13) = {0, 0, 0, lc_coarse};   // center of arc = origin
-Circle(1) = {11, 10, 12};
+Circle(10) = {11, 10, 12};
+Circle(11) = {12, 10, 13};
+Circle(12) = {13, 10, 14};
+Circle(13) = {14, 10, 11};
 
-// Symmetry lines
-Line(2) = {10, 11};   // sym plane 1 (0°)
-Line(3) = {12, 10};   // sym plane 2 (30° → back to origin)
-
-// Wedge surface (before subtracting holes)
-Line Loop(1) = {2, 1, 3};
-Plane Surface(1) = {1};
-
-// =============================================================================
-// HEAT PIPE HOLES — circular cutouts in graphite
-// These surfaces get the IVTBC boundary condition in OpenFOAM
-// =============================================================================
-
-// HP 1: at 0° on symmetry plane (only half circle in wedge)
-Point(20) = {hp1_x, hp1_y, 0, lc_hp};           // center
-Point(21) = {hp1_x + hp_r, 0, 0, lc_hp};         // right point
-Point(22) = {hp1_x, hp_r, 0, lc_hp};             // top point  
-Point(23) = {hp1_x - hp_r, 0, 0, lc_hp};         // left point
-
-Circle(10) = {21, 20, 22};
-Circle(11) = {22, 20, 23};
-// half circle (in wedge): arc from right to top to left
-Line Loop(10) = {10, 11};   // half circle
-// Note: HP on symmetry plane = half pipe in wedge
-
-// HP 2: at 30° (fully inside wedge — whole circle)
-Point(30) = {hp2_x, hp2_y, 0, lc_hp};
-Point(31) = {hp2_x + hp_r, hp2_y, 0, lc_hp};
-Point(32) = {hp2_x, hp2_y + hp_r, 0, lc_hp};
-Point(33) = {hp2_x - hp_r, hp2_y, 0, lc_hp};
-Point(34) = {hp2_x, hp2_y - hp_r, 0, lc_hp};
-
-Circle(20) = {31, 30, 32};
-Circle(21) = {32, 30, 33};
-Circle(22) = {33, 30, 34};
-Circle(23) = {34, 30, 31};
-
-Line Loop(20) = {20, 21, 22, 23};   // full circle
-Plane Surface(20) = {20};           // HP 2 disk (to be subtracted)
-
-// Fuel pin 1: at 0° on symmetry plane (half pin)
-Point(40) = {fp1_x, 0, 0, lc_fine};
-Point(41) = {fp1_x + fp_r, 0, 0, lc_fine};
-Point(42) = {fp1_x, fp_r, 0, lc_fine};
-Point(43) = {fp1_x - fp_r, 0, 0, lc_fine};
-
-Circle(30) = {41, 40, 42};
-Circle(31) = {42, 40, 43};
-Line Loop(30) = {30, 31};   // half circle fuel pin 1
-
-// Fuel pin 2: at 30° (fully inside wedge)
-Point(50) = {fp3_x, fp3_y, 0, lc_fine};
-Point(51) = {fp3_x + fp_r, fp3_y, 0, lc_fine};
-Point(52) = {fp3_x, fp3_y + fp_r, 0, lc_fine};
-Point(53) = {fp3_x - fp_r, fp3_y, 0, lc_fine};
-Point(54) = {fp3_x, fp3_y - fp_r, 0, lc_fine};
-
-Circle(40) = {51, 50, 52};
-Circle(41) = {52, 50, 53};
-Circle(42) = {53, 50, 54};
-Circle(43) = {54, 50, 51};
-
-Line Loop(40) = {40, 41, 42, 43};
-Plane Surface(40) = {40};   // fuel pin 2 disk
+Line Loop(10) = {10, 11, 12, 13};
+Plane Surface(10) = {10};   // HP disk surface
 
 // =============================================================================
-// MAIN GRAPHITE SURFACE (wedge minus HP holes and fuel pin holes)
+// FUEL PIN HOLES
+// Representative fuel pins within the 30-degree wedge
+// Pin at 0 degrees (on sym plane 1, half pin)
+// Pin at 30 degrees (on sym plane 2, half pin)  
+// Pin at 15 degrees (fully inside)
 // =============================================================================
 
-// Subtract HP2 and fuel pin 2 from wedge
-// HP1 and fuel pin 1 are on symmetry plane — handled as boundary segments
-Plane Surface(100) = {1, -20, -40};   // wedge minus HP2 minus fp2
+// --- Fuel pin at 15 degrees (inner ring, fully inside wedge) ---
+fp1_x = fp1_ring_r * Cos(Pi/12);
+fp1_y = fp1_ring_r * Sin(Pi/12);
+
+Point(20) = {fp1_x,          fp1_y,          0, lc_fp};
+Point(21) = {fp1_x + fp_r,   fp1_y,          0, lc_fp};
+Point(22) = {fp1_x,          fp1_y + fp_r,   0, lc_fp};
+Point(23) = {fp1_x - fp_r,   fp1_y,          0, lc_fp};
+Point(24) = {fp1_x,          fp1_y - fp_r,   0, lc_fp};
+
+Circle(20) = {21, 20, 22};
+Circle(21) = {22, 20, 23};
+Circle(22) = {23, 20, 24};
+Circle(23) = {24, 20, 21};
+
+Line Loop(20) = {20, 21, 22, 23};
+Plane Surface(20) = {20};   // fuel pin 1 disk
+
+// --- Fuel pin at 15 degrees (outer ring, fully inside wedge) ---
+fp2_x = fp2_ring_r * Cos(Pi/12);
+fp2_y = fp2_ring_r * Sin(Pi/12);
+
+Point(30) = {fp2_x,          fp2_y,          0, lc_fp};
+Point(31) = {fp2_x + fp_r,   fp2_y,          0, lc_fp};
+Point(32) = {fp2_x,          fp2_y + fp_r,   0, lc_fp};
+Point(33) = {fp2_x - fp_r,   fp2_y,          0, lc_fp};
+Point(34) = {fp2_x,          fp2_y - fp_r,   0, lc_fp};
+
+Circle(30) = {31, 30, 32};
+Circle(31) = {32, 30, 33};
+Circle(32) = {33, 30, 34};
+Circle(33) = {34, 30, 31};
+
+Line Loop(30) = {30, 31, 32, 33};
+Plane Surface(30) = {30};   // fuel pin 2 disk
 
 // =============================================================================
-// PHYSICAL GROUPS — tells OpenFOAM what each surface/volume is
+// MAIN GRAPHITE SURFACE
+// Wedge minus heat pipe holes minus fuel pin holes
 // =============================================================================
-
-// Volume (after extrusion — defined after Extrude command)
-// Surfaces for boundary conditions:
-Physical Surface("symmetry_1") = {2};           // 0° symmetry plane
-Physical Surface("symmetry_2") = {3};           // 30° symmetry plane  
-Physical Surface("heatPipe_surfaces") = {20};   // HP hole surfaces → IVTBC BC
-Physical Surface("fuelPin_surfaces") = {40};    // fuel pin surfaces → heat source zone
-Physical Surface("outer_graphite") = {1};       // outer graphite boundary
+Plane Surface(100) = {1, -10, -20, -30};
 
 // =============================================================================
-// EXTRUDE: 2D cross-section → 3D core
-// Extrude in z direction for core_height with n_axial layers
+// EXTRUDE TO 3D
+// Simple extrusion — no recombine to avoid vertex tracking errors
 // =============================================================================
 
-// Extrude the graphite surface
-ext[] = Extrude {0, 0, core_height} {
+// extrude graphite surface
+ext_graphite[] = Extrude {0, 0, core_height} {
     Surface{100};
     Layers{n_axial};
-    Recombine;
 };
 
-// Extrude the HP2 hole (creates cylinder surface for IVTBC BC)
-ext_hp2[] = Extrude {0, 0, core_height} {
+// extrude HP hole (creates cylindrical surface for IVTBC BC)
+ext_hp[] = Extrude {0, 0, core_height} {
+    Surface{10};
+    Layers{n_axial};
+};
+
+// extrude fuel pin 1
+ext_fp1[] = Extrude {0, 0, core_height} {
     Surface{20};
     Layers{n_axial};
-    Recombine;
 };
 
-// Extrude the fuel pin 2 zone
+// extrude fuel pin 2
 ext_fp2[] = Extrude {0, 0, core_height} {
-    Surface{40};
+    Surface{30};
     Layers{n_axial};
-    Recombine;
 };
 
 // =============================================================================
-// PHYSICAL VOLUMES — the solid regions OpenFOAM solves in
+// PHYSICAL GROUPS — boundary condition labels for OpenFOAM
 // =============================================================================
 
-Physical Volume("graphite_monolith") = {ext[1]};
-Physical Volume("heatPipe_zone") = {ext_hp2[1]};
-Physical Volume("fuelPin_zone") = {ext_fp2[1]};
+// solid volumes
+Physical Volume("graphite") = {ext_graphite[1]};
+Physical Volume("heatPipe") = {ext_hp[1]};
+Physical Volume("fuelPin1") = {ext_fp1[1]};
+Physical Volume("fuelPin2") = {ext_fp2[1]};
+
+// boundary surfaces
+// symmetry planes (faces 2 and 4 of wedge after extrusion)
+Physical Surface("sym1") = {ext_graphite[2]};   // bottom face sym plane 1
+Physical Surface("sym2") = {ext_graphite[4]};   // bottom face sym plane 2
+Physical Surface("outer") = {ext_graphite[3]};  // outer arc surface
+
+// axial faces
+Physical Surface("bottom") = {100};                // z=0 face
+Physical Surface("top")    = {ext_graphite[0]};    // z=core_height face
+
+// heat pipe cylindrical surface — gets IVTBC boundary condition
+Physical Surface("heatPipe_BC") = {
+    ext_hp[2], ext_hp[3], ext_hp[4], ext_hp[5]
+};
+
+// fuel pin surfaces — heat generation zones
+Physical Surface("fuelPin1_BC") = {
+    ext_fp1[2], ext_fp1[3], ext_fp1[4], ext_fp1[5]
+};
+Physical Surface("fuelPin2_BC") = {
+    ext_fp2[2], ext_fp2[3], ext_fp2[4], ext_fp2[5]
+};
 
 // =============================================================================
-// MESH SETTINGS
+// MESH OPTIONS
 // =============================================================================
-
-// use structured hex mesh for better convergence
-Mesh.RecombineAll = 1;
-Mesh.Algorithm = 6;       // Frontal-Delaunay for 2D
-Mesh.Algorithm3D = 4;     // Frontal for 3D
-
-// mesh size fields for refinement near HPs (critical for IVTBC accuracy)
-Field[1] = Distance;
-Field[1].SurfacesList = {20};   // distance from HP2 surface
-Field[1].NNodesByEdge = 40;
-
-Field[2] = Threshold;
-Field[2].InField = 1;
-Field[2].SizeMin = lc_hp;
-Field[2].SizeMax = lc_coarse;
-Field[2].DistMin = 0.002;
-Field[2].DistMax = 0.015;
-
-Background Field = 2;
-
+Mesh.Algorithm   = 5;    // Delaunay 2D
+Mesh.Algorithm3D = 1;    // Delaunay 3D (most stable)
 Mesh.CharacteristicLengthMin = 0.0005;
 Mesh.CharacteristicLengthMax = 0.005;
+
+// refinement near heat pipe surfaces
+Field[1] = Distance;
+Field[1].NNodesByEdge = 30;
+Field[1].EdgesList = {10, 11, 12, 13};   // HP circle edges
+
+Field[2] = Threshold;
+Field[2].InField    = 1;
+Field[2].SizeMin    = lc_hp;
+Field[2].SizeMax    = lc_bg;
+Field[2].DistMin    = 0.001;
+Field[2].DistMax    = 0.010;
+
+Background Field = 2;
