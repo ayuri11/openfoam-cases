@@ -1,17 +1,23 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.ndimage import rotate
 
-power_3d = np.load('power_density_3d.npy')   # shape (50, 50, 28)
+power_3d = np.load('power_density_3d.npy')
+midplane = power_3d[:, :, 14] / 1e6
 
-# Take midplane slice (z index 14 = center)
-midplane = power_3d[:, :, 14] / 1e6          # W/m³ → MW/m³
+# The tally captured only the 30° wedge (1/12 of core)
+# Reconstruct full core by rotating and adding 11 copies
+full_core = np.zeros_like(midplane)
+for i in range(12):
+    rotated = rotate(midplane, angle=i*30, reshape=False, order=1)
+    full_core += rotated
 
 # =============================================================================
 # DARK THEME SETUP — matches axial profile aesthetic
 # =============================================================================
-bg_color    = '#2e2e2e'   # outer figure and axes background
-text_color  = '#cccccc'   # axis labels and tick labels
-spine_color = '#666666'   # axis spine lines
+bg_color    = '#2e2e2e'
+text_color  = '#cccccc'
+spine_color = '#666666'
 title_color = '#ffffff'
 
 fig, ax = plt.subplots(figsize=(7, 6))
@@ -19,10 +25,10 @@ fig.patch.set_facecolor(bg_color)
 ax.set_facecolor(bg_color)
 
 # =============================================================================
-# MAIN PLOT — same inferno colormap, same data, restyled
+# MAIN PLOT
 # =============================================================================
 im = ax.imshow(
-    midplane.T,
+    full_core.T,
     origin='lower',
     extent=[-60, 60, -60, 60],
     cmap='inferno',
@@ -39,7 +45,7 @@ cbar.outline.set_edgecolor(spine_color)
 plt.setp(plt.getp(cbar.ax.axes, 'yticklabels'), color=text_color, fontsize=10)
 
 # =============================================================================
-# BOUNDARY CIRCLES — same as before, lighter to sit on dark bg
+# BOUNDARY CIRCLES
 # =============================================================================
 theta = np.linspace(0, 2*np.pi, 300)
 ax.plot(45*np.cos(theta), 45*np.sin(theta),
@@ -48,7 +54,7 @@ ax.plot(60*np.cos(theta), 60*np.sin(theta),
         ':', color='#777777', linewidth=1.0, label='Reflector boundary (r = 60 cm)')
 
 # =============================================================================
-# AXES LABELS AND TITLE
+# LABELS, TICKS, SPINES
 # =============================================================================
 ax.set_xlabel('x (cm)', fontsize=12, color=text_color, labelpad=8)
 ax.set_ylabel('y (cm)', fontsize=12, color=text_color, labelpad=8)
@@ -56,24 +62,16 @@ ax.set_title(
     'AYURI Core — Reconstructed Full-Core Radial Power\n(from 1/12 symmetry, at z = 0)',
     fontsize=12, color=title_color, pad=12
 )
-
-# =============================================================================
-# TICKS — light color, no inner grid
-# =============================================================================
 ax.tick_params(axis='both', colors=text_color, labelsize=10, which='both')
 ax.grid(False)
-
-# =============================================================================
-# SPINES — styled to match axial profile (clean lines, dark color)
-# =============================================================================
 for spine in ax.spines.values():
     spine.set_edgecolor(spine_color)
     spine.set_linewidth(1.5)
 
 # =============================================================================
-# LEGEND — dark box matching background
+# LEGEND
 # =============================================================================
-legend = ax.legend(
+ax.legend(
     fontsize=9,
     loc='lower right',
     facecolor='#3a3a3a',
