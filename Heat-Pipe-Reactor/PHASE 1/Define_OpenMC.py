@@ -350,7 +350,7 @@ geometry.export_to_xml()
 settings = openmc.Settings()
 settings.batches   = 100         # Total number of neutron generations to simulate
 settings.inactive  = 20          # Discard the first 20 generations to let the flux settle
-settings.particles = 5000        # Neutrons per generation
+settings.particles = 50000        # Neutrons per generation
 
 # Settings in Criticality / k-effective mode
 settings.temperature['multipole'] = True
