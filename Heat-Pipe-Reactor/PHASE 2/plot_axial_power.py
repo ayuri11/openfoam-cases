@@ -9,35 +9,25 @@ power    = df.iloc[:, 1].values
 power_MW = power / 1e6
 
 # =============================================================================
-# PARAVIEW-MATCHED THEME
-# sampled directly from the neutronics figure:
-# outer bg: #6b7280 (medium grey)
-# inner panel: #4a5260 (darker grey-blue)
-# colorbar red peak → use as accent
-# colorbar blue base → use as fill
-# text: white
+# THEME — dark grey matching ParaView viewport, blue curve only
 # =============================================================================
-bg_outer   = '#6b7280'   # outer figure — matches ParaView window grey
-bg_panel   = '#4a5260'   # axes panel — matches ParaView inner viewport
-text_color = '#ffffff'   # white text — matches ParaView labels
-spine_color= '#8a9aaa'   # light grey-blue — matches ParaView border lines
-ref_color  = '#c0ccd8'   # light grey for reference lines
-line_color = '#d04030'   # red — matches ParaView colorbar hot end
-fill_color = '#1a3a6a'   # deep blue — matches ParaView colorbar cold end
+bg_outer   = '#3a3f4a'   # dark grey outer — ParaView window tone, dark enough for white text
+bg_panel   = '#2e333d'   # darker grey-blue panel — distinct from outer
+text_color = '#ffffff'
+spine_color= '#6a7a8a'
+ref_color  = '#9aaabb'
+line_color = '#5b9bd5'   # blue curve
+fill_color = '#1e3a5a'   # deep blue fill
 title_color= '#ffffff'
 
 fig, ax = plt.subplots(figsize=(6, 9))
 fig.patch.set_facecolor(bg_outer)
 ax.set_facecolor(bg_panel)
 
-# =============================================================================
-# FILL — deep blue matching ParaView cold color
-# =============================================================================
+# fill
 ax.fill_betweenx(z, power_MW, alpha=0.60, color=fill_color)
 
-# =============================================================================
-# MAIN LINE — red matching ParaView hot color, thick for print
-# =============================================================================
+# main line
 ax.plot(power_MW, z, 'o-',
         color=line_color,
         linewidth=3.0,
@@ -46,22 +36,15 @@ ax.plot(power_MW, z, 'o-',
         markeredgecolor=bg_panel,
         markeredgewidth=1.5)
 
-# =============================================================================
-# REFERENCE LINES
-# =============================================================================
-ax.axhline(y=0,
-           color=ref_color, linestyle='--',
+# reference lines
+ax.axhline(y=0,   color=ref_color, linestyle='--',
            linewidth=1.5, label='Core midplane', alpha=0.9)
-ax.axhline(y=80,
-           color=ref_color, linestyle=':',
+ax.axhline(y=80,  color=ref_color, linestyle=':',
            linewidth=1.2, label='Fuel boundary', alpha=0.75)
-ax.axhline(y=-80,
-           color=ref_color, linestyle=':',
+ax.axhline(y=-80, color=ref_color, linestyle=':',
            linewidth=1.2, alpha=0.75)
 
-# =============================================================================
-# LABELS — large for poster print
-# =============================================================================
+# labels
 ax.set_xlabel('Power Density (MW/m³)',
               fontsize=15, color=text_color, labelpad=10)
 ax.set_ylabel('Axial Position z (cm)',
@@ -69,22 +52,17 @@ ax.set_ylabel('Axial Position z (cm)',
 ax.set_title('TRAVIS Core — Axial Power Distribution\n(normalized to 2.5 MWth)',
              fontsize=14, color=title_color, pad=14)
 
-# =============================================================================
-# TICKS AND SPINES
-# =============================================================================
+# ticks and spines
 ax.tick_params(axis='both', colors=text_color,
                labelsize=13, width=1.5, length=5)
 ax.grid(False)
-
 for spine in ax.spines.values():
     spine.set_edgecolor(spine_color)
     spine.set_linewidth(2.0)
 
-# =============================================================================
-# LEGEND — matching ParaView colorbar box style
-# =============================================================================
+# legend
 ax.legend(fontsize=12,
-          facecolor='#3a4250',
+          facecolor='#2a3040',
           edgecolor=spine_color,
           labelcolor=text_color,
           framealpha=0.92,
