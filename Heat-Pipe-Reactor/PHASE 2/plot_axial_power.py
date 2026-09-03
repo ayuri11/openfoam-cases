@@ -4,91 +4,94 @@ import pandas as pd
 
 # Load the CSV saved by Phase 2
 df = pd.read_csv('axial_power_profile.csv')
-z     = df.iloc[:, 0].values
-power = df.iloc[:, 1].values
+z        = df.iloc[:, 0].values
+power    = df.iloc[:, 1].values
 power_MW = power / 1e6
 
 # =============================================================================
-# DARK THEME — poster-optimized for print readability
+# PARAVIEW-MATCHED THEME
+# sampled directly from the neutronics figure:
+# outer bg: #6b7280 (medium grey)
+# inner panel: #4a5260 (darker grey-blue)
+# colorbar red peak → use as accent
+# colorbar blue base → use as fill
+# text: white
 # =============================================================================
-bg_outer    = '#1a2535'   # outer figure background — dark navy
-bg_panel    = '#243044'   # axes panel — slightly lighter so fill stands out
-text_color  = '#e8edf2'   # bright light grey — high contrast on dark bg
-spine_color = '#5a7a9a'   # medium blue-grey for axis lines
-ref_color   = '#8aabcc'   # lighter blue for reference lines
-title_color = '#ffffff'
-line_color  = '#5b9bd5'   # blue line
-fill_color  = '#3a6a9a'   # distinctly darker blue for fill — visible but not competing
+bg_outer   = '#6b7280'   # outer figure — matches ParaView window grey
+bg_panel   = '#4a5260'   # axes panel — matches ParaView inner viewport
+text_color = '#ffffff'   # white text — matches ParaView labels
+spine_color= '#8a9aaa'   # light grey-blue — matches ParaView border lines
+ref_color  = '#c0ccd8'   # light grey for reference lines
+line_color = '#d04030'   # red — matches ParaView colorbar hot end
+fill_color = '#1a3a6a'   # deep blue — matches ParaView colorbar cold end
+title_color= '#ffffff'
 
 fig, ax = plt.subplots(figsize=(6, 9))
 fig.patch.set_facecolor(bg_outer)
 ax.set_facecolor(bg_panel)
 
 # =============================================================================
-# FILL — slightly darker blue so curve stands out clearly on top
+# FILL — deep blue matching ParaView cold color
 # =============================================================================
-ax.fill_betweenx(z, power_MW, alpha=0.55, color=fill_color)
+ax.fill_betweenx(z, power_MW, alpha=0.60, color=fill_color)
 
 # =============================================================================
-# MAIN LINE — thicker for print visibility
+# MAIN LINE — red matching ParaView hot color, thick for print
 # =============================================================================
 ax.plot(power_MW, z, 'o-',
         color=line_color,
-        linewidth=3.0,          # thicker line
-        markersize=6,           # bigger dots
+        linewidth=3.0,
+        markersize=6,
         markerfacecolor=line_color,
-        markeredgecolor=bg_outer,
+        markeredgecolor=bg_panel,
         markeredgewidth=1.5)
 
 # =============================================================================
-# REFERENCE LINES — thicker and brighter
+# REFERENCE LINES
 # =============================================================================
 ax.axhline(y=0,
            color=ref_color, linestyle='--',
-           linewidth=1.4, label='Core midplane', alpha=0.9)
+           linewidth=1.5, label='Core midplane', alpha=0.9)
 ax.axhline(y=80,
            color=ref_color, linestyle=':',
-           linewidth=1.2, label='Fuel boundary', alpha=0.7)
+           linewidth=1.2, label='Fuel boundary', alpha=0.75)
 ax.axhline(y=-80,
            color=ref_color, linestyle=':',
-           linewidth=1.2, alpha=0.7)
+           linewidth=1.2, alpha=0.75)
 
 # =============================================================================
-# LABELS — larger font sizes for poster print
+# LABELS — large for poster print
 # =============================================================================
 ax.set_xlabel('Power Density (MW/m³)',
               fontsize=15, color=text_color, labelpad=10)
 ax.set_ylabel('Axial Position z (cm)',
               fontsize=15, color=text_color, labelpad=10)
-ax.set_title('AYURI Core — Axial Power Distribution\n(normalized to 2.5 MWth)',
+ax.set_title('TRAVIS Core — Axial Power Distribution\n(normalized to 2.5 MWth)',
              fontsize=14, color=title_color, pad=14)
 
 # =============================================================================
-# TICKS — larger and brighter
+# TICKS AND SPINES
 # =============================================================================
 ax.tick_params(axis='both', colors=text_color,
                labelsize=13, width=1.5, length=5)
 ax.grid(False)
 
-# =============================================================================
-# SPINES — brighter and thicker
-# =============================================================================
 for spine in ax.spines.values():
     spine.set_edgecolor(spine_color)
     spine.set_linewidth(2.0)
 
 # =============================================================================
-# LEGEND — readable box
+# LEGEND — matching ParaView colorbar box style
 # =============================================================================
 ax.legend(fontsize=12,
-          facecolor='#2a3d55',
+          facecolor='#3a4250',
           edgecolor=spine_color,
           labelcolor=text_color,
           framealpha=0.92,
           loc='upper left')
 
 plt.tight_layout()
-plt.savefig('axial_power_profile_dark_v2.png', dpi=300, facecolor=bg_outer)
-plt.savefig('axial_power_profile_dark_v2.pdf', facecolor=bg_outer)
-print("Saved: axial_power_profile_dark_v2.png and .pdf")
+plt.savefig('axial_power_paraview_theme.png', dpi=300, facecolor=bg_outer)
+plt.savefig('axial_power_paraview_theme.pdf', facecolor=bg_outer)
+print("Saved: axial_power_paraview_theme.png and .pdf")
 plt.show()
