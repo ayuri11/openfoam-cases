@@ -1,0 +1,132 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  OpenFOAM 11 blockMeshDict
+  HPR Core — 1/12 symmetry wedge
+  Graphite monolith with heat pipe and fuel pin zones
+  Units: meters
+  
+  Geometry: rectangular approximation of 30-degree wedge
+  x: radial direction (0 to wedge_r = 0.03175m)
+  y: tangential direction (0 to wedge_r * tan(30°) = 0.01833m)  
+  z: axial direction (0 to core_height = 1.60m)
+  
+  This rectangular domain approximates the 1/12 wedge
+  Symmetry planes applied on all lateral faces
+  Heat pipe and fuel pin zones identified by topoSet
+\*---------------------------------------------------------------------------*/
+
+FoamFile
+{
+    format      ascii;
+    class       dictionary;
+    object      blockMeshDict;
+}
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// domain dimensions (meters)
+// x: 0 to 0.0275 (wedge apothem = cell_flat/2 = 2.75cm)
+// y: 0 to 0.0159 (wedge width at apothem = apothem * tan(30°))
+// z: 0 to 1.60 (core height = 160cm)
+
+xMax  0.0275;   // apothem of hex cell
+yMax  0.0159;   // wedge width = xMax * tan(30°) = 0.0275 * 0.5774
+zMax  1.60;     // core height
+
+// mesh resolution
+// radial: 20 cells across 2.75cm
+// tangential: 12 cells across 1.59cm
+// axial: 28 cells (NA=28 per methodology)
+nx  20;
+ny  12;
+nz  28;
+
+scale 1;   // already in meters
+
+vertices
+(
+    ( 0      0      0    )   // 0
+    ( $xMax  0      0    )   // 1
+    ( $xMax  $yMax  0    )   // 2
+    ( 0      $yMax  0    )   // 3
+    ( 0      0      $zMax)   // 4
+    ( $xMax  0      $zMax)   // 5
+    ( $xMax  $yMax  $zMax)   // 6
+    ( 0      $yMax  $zMax)   // 7
+);
+
+blocks
+(
+    // single hex block covering entire domain
+    // (nx ny nz) cells with simple grading
+    hex (0 1 2 3 4 5 6 7) ($nx $ny $nz) simpleGrading (1 1 1)
+);
+
+edges
+(
+    // straight edges — no curvature
+);
+
+boundary
+(
+    // symmetry plane at y=0 (corresponds to 0° symmetry plane)
+    sym_plane_1
+    {
+        type symmetry;
+        faces
+        (
+            (0 1 5 4)   // bottom y-face
+        );
+    }
+
+    // symmetry plane at y=yMax (corresponds to 30° symmetry plane)
+    sym_plane_2
+    {
+        type symmetry;
+        faces
+        (
+            (3 7 6 2)   // top y-face
+        );
+    }
+
+    // inner face at x=0 (core center axis)
+    core_center
+    {
+        type symmetry;
+        faces
+        (
+            (0 3 7 4)   // left x-face
+        );
+    }
+
+    // outer boundary at x=xMax (outer graphite edge)
+    outer_boundary
+    {
+        type wall;
+        faces
+        (
+            (1 2 6 5)   // right x-face
+        );
+    }
+
+    // bottom axial face (z=0)
+    bottom
+    {
+        type wall;
+        faces
+        (
+            (0 1 2 3)   // bottom z-face
+        );
+    }
+
+    // top axial face (z=zMax)
+    top
+    {
+        type wall;
+        faces
+        (
+            (4 5 6 7)   // top z-face
+        );
+    }
+);
+
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
