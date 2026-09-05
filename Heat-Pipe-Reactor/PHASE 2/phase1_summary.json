@@ -1,15 +1,15 @@
 {
-  "k_effective": 0.9903832861016522,
-  "k_uncertainty": 0.0014504896875271003,
-  "P_total_MWth": 15.0,
-  "norm_factor": 6.841879284891355e+18,
-  "q_max_Wm3": 4790071807.785298,
-  "q_mean_Wm3": 146480778.37374532,
+  "k_effective": 0.9934427987680706,
+  "k_uncertainty": 0.0005602022010577604,
+  "P_total_MWth_reference": 2.5,
+  "norm_factor": 1.1385213486021266e+18,
+  "q_max_Wm3": 782442731.3461558,
+  "q_mean_Wm3": 22948821.243632022,
   "cell_vol_cm3": 18.514285714285716,
   "mesh_dims": [
     50,
     50,
     28
   ],
-  "total_power_check_MWth": 15.0
+  "total_power_check_MWth": 2.4999999999999996
 }
