@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import rotate
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.cm import get_cmap
 
 power_3d = np.load('power_density_3d.npy')
 midplane = power_3d[:, :, 14] / 1e6
@@ -12,10 +14,27 @@ for i in range(12):
     full_core += rotated
 
 # =============================================================================
-# THEME — dark bg, thick bright boundary circles
+# CUSTOM COLORMAP — inferno but starting from warm white instead of black
+# zero power = soft warm white, high power = orange/yellow
 # =============================================================================
-bg_outer    = '#3a3f4a'
-bg_panel    = '#2e2e2e'   # dark inner panel back
+inferno = get_cmap('inferno')
+colors_inferno = inferno(np.linspace(0, 1, 256))
+# blend the bottom 40% toward a warm white
+for i in range(100):
+    t = i / 100
+    colors_inferno[i] = (
+        1.0 - t * (1.0 - colors_inferno[i][0]),   # R
+        1.0 - t * (1.0 - colors_inferno[i][1]),   # G
+        0.95 - t * (0.95 - colors_inferno[i][2]), # B — slightly warm white
+        1.0
+    )
+custom_cmap = LinearSegmentedColormap.from_list('inferno_light', colors_inferno)
+
+# =============================================================================
+# THEME
+# =============================================================================
+bg_outer    = '#3a3f4a'   # dark grey outer — matches axial plot
+bg_panel    = '#f0f2f5'   # very light grey-white inner panel
 text_color  = '#ffffff'
 spine_color = '#6a7a8a'
 title_color = '#ffffff'
@@ -25,13 +44,13 @@ fig.patch.set_facecolor(bg_outer)
 ax.set_facecolor(bg_panel)
 
 # =============================================================================
-# MAIN PLOT
+# MAIN PLOT — custom colormap, light bg
 # =============================================================================
 im = ax.imshow(
     full_core.T,
     origin='lower',
     extent=[-60, 60, -60, 60],
-    cmap='inferno',
+    cmap=custom_cmap,
     interpolation='bilinear',
     vmin=0
 )
@@ -48,15 +67,15 @@ plt.setp(plt.getp(cbar.ax.axes, 'yticklabels'),
          color=text_color, fontsize=11)
 
 # =============================================================================
-# BOUNDARY CIRCLES — bright white, thick, fully opaque
+# BOUNDARY CIRCLES — dark navy, thick, clearly visible on light bg
 # =============================================================================
 theta = np.linspace(0, 2*np.pi, 300)
 ax.plot(45*np.cos(theta), 45*np.sin(theta),
-        '--', color='#ffffff', linewidth=2.5,
-        alpha=1.0, label='Core boundary (r = 45 cm)')
+        '--', color='#1a2535', linewidth=2.2,
+        label='Core boundary (r = 45 cm)')
 ax.plot(60*np.cos(theta), 60*np.sin(theta),
-        ':', color='#ffffff', linewidth=2.2,
-        alpha=1.0, label='Reflector boundary (r = 60 cm)')
+        ':', color='#1a2535', linewidth=2.0,
+        label='Reflector boundary (r = 60 cm)')
 
 # =============================================================================
 # LABELS
@@ -79,20 +98,20 @@ for spine in ax.spines.values():
     spine.set_linewidth(2.0)
 
 # =============================================================================
-# LEGEND — dark box, white text
+# LEGEND — light box with dark text, sits on light panel
 # =============================================================================
 legend = ax.legend(
     fontsize=10,
     loc='lower right',
-    facecolor='#2a3040',
-    edgecolor='#ffffff',
+    facecolor='#e8edf2',
+    edgecolor='#1a2535',
     framealpha=0.92
 )
 for text in legend.get_texts():
-    text.set_color('#ffffff')
+    text.set_color('#1a2535')
 
 plt.tight_layout()
-plt.savefig('radial_power_paraview_theme.png', dpi=300, facecolor=bg_outer)
-plt.savefig('radial_power_paraview_theme.pdf', facecolor=bg_outer)
-print("Saved: radial_power_paraview_theme.png and .pdf")
+plt.savefig('radial_power_white_theme.png', dpi=300, facecolor=bg_outer)
+plt.savefig('radial_power_white_theme.pdf', facecolor=bg_outer)
+print("Saved: radial_power_white_theme.png and .pdf")
 plt.show()
