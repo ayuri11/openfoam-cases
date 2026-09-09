@@ -1,0 +1,25 @@
+FoamFile { format ascii; class dictionary; object topoSetDict; }
+actions
+(
+    {
+        name    heatPipeCells;
+        type    cellSet;
+        action  new;
+        source  surfaceToCell;
+        file    "constant/triSurface/heatPipe.stl";
+        outsidePoints ((0.020 0.010 0.80));
+        includeCut    false;
+        includeInside true;
+        includeOutside false;
+        nearDistance  -1;
+        curvature     -100;
+    }
+    {
+        name    heatPipeFaces;
+        type    faceSet;
+        action  new;
+        source  cellToFace;
+        set     heatPipeCells;
+        option  all;
+    }
+);
