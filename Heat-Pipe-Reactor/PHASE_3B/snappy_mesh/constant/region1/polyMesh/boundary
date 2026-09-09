@@ -1,0 +1,93 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  11
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       polyBoundaryMesh;
+    location    "constant/region1/polyMesh";
+    object      boundary;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+9
+(
+    sym_y0
+    {
+        type            symmetry;
+        inGroups        List<word> 1(symmetry);
+        nFaces          9000;
+        startFace       983204;
+    }
+    sym_ymax
+    {
+        type            symmetry;
+        inGroups        List<word> 1(symmetry);
+        nFaces          6000;
+        startFace       992204;
+    }
+    sym_x0
+    {
+        type            symmetry;
+        inGroups        List<word> 1(symmetry);
+        nFaces          3600;
+        startFace       998204;
+    }
+    outer
+    {
+        type            wall;
+        inGroups        List<word> 1(wall);
+        nFaces          6800;
+        startFace       1001804;
+    }
+    bottom
+    {
+        type            wall;
+        inGroups        List<word> 1(wall);
+        nFaces          796;
+        startFace       1008604;
+    }
+    top
+    {
+        type            wall;
+        inGroups        List<word> 1(wall);
+        nFaces          796;
+        startFace       1009400;
+    }
+    region1_to_heatPipe_wall
+    {
+        type            mappedWall;
+        inGroups        List<word> 1(wall);
+        nFaces          72800;
+        startFace       1010196;
+        neighbourRegion heatPipe_wall;
+        neighbourPatch  heatPipe_wall_to_region1;
+        transformType   none;
+    }
+    region1_to_fuelPin1_wall
+    {
+        type            mappedWall;
+        inGroups        List<word> 1(wall);
+        nFaces          18400;
+        startFace       1082996;
+        neighbourRegion fuelPin1_wall;
+        neighbourPatch  fuelPin1_wall_to_region1;
+        transformType   none;
+    }
+    region1_to_fuelPin2_wall
+    {
+        type            mappedWall;
+        inGroups        List<word> 1(wall);
+        nFaces          34000;
+        startFace       1101396;
+        neighbourRegion fuelPin2_wall;
+        neighbourPatch  fuelPin2_wall_to_region1;
+        transformType   none;
+    }
+)
+
+// ************************************************************************* //

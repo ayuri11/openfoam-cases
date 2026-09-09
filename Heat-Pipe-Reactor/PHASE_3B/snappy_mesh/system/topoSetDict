@@ -2,23 +2,21 @@ FoamFile { format ascii; class dictionary; object topoSetDict; }
 actions
 (
     {
-        name    allCells;
-        type    cellSet;
+        name    hpNearFaces;
+        type    faceSet;
         action  new;
-        source  allCells;
+        source  cylinderToFace;
+        point1  (0.0256 0.0069 0.0);
+        point2  (0.0256 0.0069 1.6);
+        radius  0.00460;
     }
     {
-        name    graphiteCells;
-        type    cellSet;
-        action  new;
-        source  cellSet;
-        set     allCells;
-    }
-    {
-        name    graphiteCells;
-        type    cellSet;
-        action  subtract;
-        source  cellSet;
-        set     heatPipeCells;
+        name    hpCoreFaces;
+        type    faceSet;
+        action  subset;
+        source  cylinderToFace;
+        point1  (0.0256 0.0069 0.0);
+        point2  (0.0256 0.0069 1.6);
+        radius  0.00440;
     }
 );

@@ -1,0 +1,72 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  11
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       polyBoundaryMesh;
+    location    "constant/heatPipe_wall/polyMesh";
+    object      boundary;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+6
+(
+    outer
+    {
+        type            wall;
+        inGroups        List<word> 1(wall);
+        nFaces          6400;
+        startFace       555503;
+    }
+    bottom
+    {
+        type            wall;
+        inGroups        List<word> 1(wall);
+        nFaces          297;
+        startFace       561903;
+    }
+    top
+    {
+        type            wall;
+        inGroups        List<word> 1(wall);
+        nFaces          297;
+        startFace       562200;
+    }
+    heatPipe_wall_to_region1
+    {
+        type            mappedWall;
+        inGroups        List<word> 1(wall);
+        nFaces          72800;
+        startFace       562497;
+        neighbourRegion region1;
+        neighbourPatch  region1_to_heatPipe_wall;
+        transformType   none;
+    }
+    heatPipe_wall_to_region2
+    {
+        type            mappedWall;
+        inGroups        List<word> 1(wall);
+        nFaces          1600;
+        startFace       635297;
+        neighbourRegion region2;
+        neighbourPatch  region2_to_heatPipe_wall;
+        transformType   none;
+    }
+    heatPipe_wall_to_fuelPin2_wall
+    {
+        type            mappedWall;
+        inGroups        List<word> 1(wall);
+        nFaces          4000;
+        startFace       636897;
+        neighbourRegion fuelPin2_wall;
+        neighbourPatch  fuelPin2_wall_to_heatPipe_wall;
+        transformType   none;
+    }
+)
+
+// ************************************************************************* //

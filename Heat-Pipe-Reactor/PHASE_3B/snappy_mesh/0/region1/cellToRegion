@@ -1,0 +1,65 @@
+/*--------------------------------*- C++ -*----------------------------------*\
+  =========                 |
+  \\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\    /   O peration     | Website:  https://openfoam.org
+    \\  /    A nd           | Version:  11
+     \\/     M anipulation  |
+\*---------------------------------------------------------------------------*/
+FoamFile
+{
+    format      ascii;
+    class       volScalarField;
+    location    "0/region1";
+    object      cellToRegion;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 0 0 0 0 0 0];
+
+internalField   uniform 0;
+
+boundaryField
+{
+    sym_y0
+    {
+        type            symmetry;
+    }
+    sym_ymax
+    {
+        type            symmetry;
+    }
+    sym_x0
+    {
+        type            symmetry;
+    }
+    outer
+    {
+        type            zeroGradient;
+    }
+    bottom
+    {
+        type            zeroGradient;
+    }
+    top
+    {
+        type            zeroGradient;
+    }
+    region1_to_heatPipe_wall
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+    region1_to_fuelPin1_wall
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+    region1_to_fuelPin2_wall
+    {
+        type            calculated;
+        value           uniform 0;
+    }
+}
+
+
+// ************************************************************************* //

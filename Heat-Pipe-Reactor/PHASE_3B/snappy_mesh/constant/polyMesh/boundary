@@ -20,43 +20,43 @@ FoamFile
     {
         type            symmetry;
         inGroups        List<word> 1(symmetry);
-        nFaces          11484;
-        startFace       2040732;
+        nFaces          11400;
+        startFace       2005635;
     }
     sym_ymax
     {
         type            symmetry;
         inGroups        List<word> 1(symmetry);
         nFaces          6000;
-        startFace       2052216;
+        startFace       2017035;
     }
     sym_x0
     {
         type            symmetry;
         inGroups        List<word> 1(symmetry);
         nFaces          3600;
-        startFace       2058216;
+        startFace       2023035;
     }
     outer
     {
         type            wall;
         inGroups        List<word> 1(wall);
-        nFaces          13341;
-        startFace       2061816;
+        nFaces          13200;
+        startFace       2026635;
     }
     bottom
     {
         type            wall;
         inGroups        List<word> 1(wall);
-        nFaces          3603;
-        startFace       2075157;
+        nFaces          1365;
+        startFace       2039835;
     }
     top
     {
         type            wall;
         inGroups        List<word> 1(wall);
-        nFaces          1410;
-        startFace       2078760;
+        nFaces          1365;
+        startFace       2041200;
     }
 )
 
