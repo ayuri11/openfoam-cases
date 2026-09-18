@@ -377,7 +377,7 @@ settings.export_to_xml()
 # =============================================================================
 # ADD: cylindrical mesh tally covering active core
 mesh = openmc.RegularMesh()    # a 3D rectangular grid overlaid on the geometry; gives a spatial map of power and flux
-mesh.dimension = [50, 50, 28]  # 20 bins X, 20 bins Y, 14 bins Z (NA >= 14 axial slices)
+mesh.dimension = [50, 50, 28]  # 50 bins X, 50 bins Y, 28 bins Z (NA >= 14 axial slices)
 mesh.lower_left  = [-reflector_radius, -reflector_radius, -core_height/2]
 mesh.upper_right = [ reflector_radius,  reflector_radius,  core_height/2]
 mesh_filter = openmc.MeshFilter(mesh)
@@ -436,5 +436,5 @@ with openmc.StatePoint(statepoint_filename) as sp:
         }
     )
 
-print("Success! 'reactor_3d_results.vtk' has been saved to your working directory.")
+print("Success! 'reactor_3d_results.vtk' has been saved to working directory.")
 print("Open ParaView, import this file, and look for 'Neutron_Flux' and 'Nuclear_Heating' arrays.")
