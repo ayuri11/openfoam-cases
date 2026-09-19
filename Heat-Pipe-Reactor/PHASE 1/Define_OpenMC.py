@@ -24,8 +24,8 @@ haynes.add_element('Co', 0.03125, 'wo')
 # CHANGE - add B-10 enrichment 
 b4c = openmc.Material(name='B4C')
 b4c.set_density('g/cm3', 2.52)
-b4c.add_nuclide('B10', 3.84, 'ao')  # B10 is the neutron-absorbing isotope in boron; 3.84/4 boron atoms are B10 (96%)
-b4c.add_nuclide('B11', 0.16, 'ao')  # 0.16/4 of boron atoms are B11 (4%)
+b4c.add_nuclide('B10', 0.80, 'ao')  # B10 is the neutron-absorbing isotope in boron; 3.84/4 boron atoms are B10 (96%)
+b4c.add_nuclide('B11', 3.20, 'ao')  # 0.16/4 of boron atoms are B11 (4%)
 b4c.add_element('C',   1.0,  'ao')  # 1 carbon atom
 #add_nuclide: adds a specific isotope; ao: atomic fraction
 
@@ -55,8 +55,8 @@ graphite.add_s_alpha_beta('c_Graphite')  # Thermal scattering law: The S(α,β) 
 # CHANGE: Zone 1 - central region, 12% enrichment (replace U-10Mo entirely)
 fuel_zone1 = openmc.Material(name='UO2_12pct')
 fuel_zone1.set_density('g/cm3', 10.4)
-fuel_zone1.add_nuclide('U235', 0.12, 'ao') # 12% of uranium atoms are U235
-fuel_zone1.add_nuclide('U238', 0.88, 'ao') # remaining 88% are U238
+fuel_zone1.add_nuclide('U235', 0.15, 'ao') # 12% of uranium atoms are U235
+fuel_zone1.add_nuclide('U238', 0.85, 'ao') # remaining 88% are U238
 fuel_zone1.add_nuclide('O16',  2.0,  'ao') # O at ratio 2:1
 
 # CHANGE: Zone 2 - middle region, 15% enrichment
@@ -109,7 +109,7 @@ total_height = core_height + axial_ref_top + axial_ref_bottom
 
 # Radial reflector (~45cm active core radius)
 core_radius      = 45.0  # defines where the graphite core ends and the radial reflector begins
-reflector_radius = 60.0  # Adjusted to 60.0 cm to meet Section 3.1.3 description (~55-60 cm)
+reflector_radius = 75.0  # Adjusted to 60.0 cm to meet Section 3.1.3 description (~55-60 cm)
 
 
 # =============================================================================
@@ -377,7 +377,7 @@ settings.export_to_xml()
 # =============================================================================
 # ADD: cylindrical mesh tally covering active core
 mesh = openmc.RegularMesh()    # a 3D rectangular grid overlaid on the geometry; gives a spatial map of power and flux
-mesh.dimension = [50, 50, 28]  # 20 bins X, 20 bins Y, 14 bins Z (NA >= 14 axial slices)
+mesh.dimension = [50, 50, 28]  # 50 bins X, 50 bins Y, 28 bins Z (NA >= 14 axial slices)
 mesh.lower_left  = [-reflector_radius, -reflector_radius, -core_height/2]
 mesh.upper_right = [ reflector_radius,  reflector_radius,  core_height/2]
 mesh_filter = openmc.MeshFilter(mesh)
@@ -436,5 +436,5 @@ with openmc.StatePoint(statepoint_filename) as sp:
         }
     )
 
-print("Success! 'reactor_3d_results.vtk' has been saved to your working directory.")
+print("Success! 'reactor_3d_results.vtk' has been saved to working directory.")
 print("Open ParaView, import this file, and look for 'Neutron_Flux' and 'Nuclear_Heating' arrays.")
